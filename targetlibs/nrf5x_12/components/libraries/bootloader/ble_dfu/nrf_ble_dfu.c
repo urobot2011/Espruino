@@ -86,7 +86,7 @@
 
 
 #if (NRF_SD_BLE_API_VERSION == 3)
-#define NRF_BLE_MAX_MTU_SIZE            GATT_MTU_SIZE_DEFAULT                                       /**< MTU size used in the softdevice enabling and to reply to a BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST event. */
+#define NRF_BLE_MAX_MTU_SIZE            247                                       /**< MTU size used in the softdevice enabling and to reply to a BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST event. */
 #endif
 
 
@@ -813,6 +813,22 @@ static uint32_t ble_stack_init(bool init_softdevice)
     
     // Enable BLE stack.
     err_code = softdevice_enable(&ble_enable_params);
+
+    /// ---- DLE stuff ----
+#if (NRF_SD_BLE_API_VERSION==3)
+    if (!err_code) {
+      //set DLE size
+      ble_opt_t opt;
+      opt.gap_opt.ext_len.rxtx_max_pdu_payload_size = NRF_BLE_MAX_MTU_SIZE+4;
+      sd_ble_opt_set(BLE_GAP_OPT_EXT_LEN, &opt);
+
+      //enable event extension
+      opt.common_opt.conn_evt_ext.enable = 1;
+      sd_ble_opt_set(BLE_COMMON_OPT_CONN_EVT_EXT, &opt);
+      ///end of DLE stuff
+    }
+#endif
+
     return err_code;
 }
 

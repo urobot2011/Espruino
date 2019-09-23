@@ -93,7 +93,7 @@ __ALIGN(4) static ble_gap_lesc_dhkey_t m_lesc_dhkey;   /**< LESC ECC DH Key*/
 // -----------------------------------------------------------------------------------
 
 #if NRF_SD_BLE_API_VERSION < 5
-#define NRF_BLE_MAX_MTU_SIZE            GATT_MTU_SIZE_DEFAULT                        /**< MTU size used in the softdevice enabling and to reply to a BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST event. */
+#define NRF_BLE_MAX_MTU_SIZE            247                        /**< MTU size used in the softdevice enabling and to reply to a BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST event. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(100, APP_TIMER_PRESCALER)   /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(10000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
@@ -822,19 +822,19 @@ static void service_error_handler(uint32_t nrf_error) {
 #endif
 
 #if NRF_LOG_ENABLED
-void nrf_log_frontend_std_0(uint32_t severity_mid, char const * const p_str) {
-  nrf_log_frontend_std_6(severity_mid, p_str,0,0,0,0,0,0);
+void nrf_log_frontend_std_0(uint8_t severity, char const * const p_str) {
+  nrf_log_frontend_std_6(severity, p_str,0,0,0,0,0,0);
 }
 
 
-void nrf_log_frontend_std_1(uint32_t            severity_mid,
+void nrf_log_frontend_std_1(uint8_t            severity_mid,
                             char const * const p_str,
                             uint32_t           val0) {
   nrf_log_frontend_std_6(severity_mid, p_str,val0,0,0,0,0,0);
 }
 
 
-void nrf_log_frontend_std_2(uint32_t           severity_mid,
+void nrf_log_frontend_std_2(uint8_t           severity_mid,
                             char const * const p_str,
                             uint32_t           val0,
                             uint32_t           val1) {
@@ -842,7 +842,7 @@ void nrf_log_frontend_std_2(uint32_t           severity_mid,
 }
 
 
-void nrf_log_frontend_std_3(uint32_t           severity_mid,
+void nrf_log_frontend_std_3(uint8_t           severity_mid,
                             char const * const p_str,
                             uint32_t           val0,
                             uint32_t           val1,
@@ -851,7 +851,7 @@ void nrf_log_frontend_std_3(uint32_t           severity_mid,
 }
 
 
-void nrf_log_frontend_std_4(uint32_t           severity_mid,
+void nrf_log_frontend_std_4(uint8_t           severity_mid,
                             char const * const p_str,
                             uint32_t           val0,
                             uint32_t           val1,
@@ -861,7 +861,7 @@ void nrf_log_frontend_std_4(uint32_t           severity_mid,
 }
 
 
-void nrf_log_frontend_std_5(uint32_t           severity_mid,
+void nrf_log_frontend_std_5(uint8_t           severity_mid,
                             char const * const p_str,
                             uint32_t           val0,
                             uint32_t           val1,
@@ -872,7 +872,7 @@ void nrf_log_frontend_std_5(uint32_t           severity_mid,
 }
 
 
-void nrf_log_frontend_std_6(uint32_t           severity_mid,
+void nrf_log_frontend_std_6(uint8_t           severity_mid,
                             char const * const p_str,
                             uint32_t           val0,
                             uint32_t           val1,
@@ -887,9 +887,6 @@ void nrf_log_frontend_std_6(uint32_t           severity_mid,
 #endif
 }
 
-nrf_log_module_dynamic_data_t NRF_LOG_MODULE_DATA_DYNAMIC = {
-    .module_id = 0
-};
 #endif
 
 /// Function for handling an event from the Connection Parameters Module.
@@ -2190,18 +2187,21 @@ static void ble_stack_init() {
 
 #ifdef NRF52
     ble_enable_params.common_enable_params.vs_uuid_count = 10;
+    ble_enable_params.gatt_enable_params.att_mtu = 247;
 #else
     ble_enable_params.common_enable_params.vs_uuid_count = 3;
 #endif
 
     //Check the ram settings against the used number of links
-    CHECK_RAM_START_ADDR(CENTRAL_LINK_COUNT, PERIPHERAL_LINK_COUNT);
+    //CHECK_RAM_START_ADDR(CENTRAL_LINK_COUNT, PERIPHERAL_LINK_COUNT);
+    // This isn't reliable, and softdevice_enable will fail anyway
 
     // Enable BLE stack.
 #if (NRF_SD_BLE_API_VERSION >= 3)
     ble_enable_params.gatt_enable_params.att_mtu = NRF_BLE_MAX_MTU_SIZE;
 #endif
     err_code = softdevice_enable(&ble_enable_params);
+    // if this fails, turn on logging - it'll show the correct amount of RAM to use
     APP_ERROR_CHECK(err_code);
 
     // Subscribe for BLE events.
@@ -2232,6 +2232,16 @@ static void ble_stack_init() {
     // Register a handler for BLE events.
     NRF_SDH_BLE_OBSERVER(m_ble_observer, APP_BLE_OBSERVER_PRIO, ble_evt_handler, NULL);
     NRF_SDH_SOC_OBSERVER(m_soc_observer, APP_SOC_OBSERVER_PRIO, soc_evt_handler, NULL);
+#endif
+
+#ifdef NRF52
+    ble_opt_t gap_opt;
+    gap_opt.gap_opt.ext_len.rxtx_max_pdu_payload_size = NRF_BLE_MAX_MTU_SIZE+4;
+    err_code = sd_ble_opt_set(BLE_GAP_OPT_EXT_LEN, &gap_opt);
+    APP_ERROR_CHECK(err_code);
+    gap_opt.common_opt.conn_evt_ext.enable = 1;
+    err_code = sd_ble_opt_set(BLE_COMMON_OPT_CONN_EVT_EXT, &gap_opt); // enable DLE
+    APP_ERROR_CHECK(err_code);
 #endif
 
 #if defined(PUCKJS) || defined(RUUVITAG)

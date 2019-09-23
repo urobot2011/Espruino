@@ -8,6 +8,8 @@
 #endif
 // <h> nRF_Drivers 
 
+#define NRF_BLE_GATT_MAX_MTU_SIZE 247
+
 //==========================================================
 // <e> CLOCK_ENABLED - nrf_drv_clock - CLOCK peripheral driver
 //==========================================================

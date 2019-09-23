@@ -9,6 +9,7 @@
 
 
 #define NFC_NDEF_MSG_ENABLED 1
+#define NRF_BLE_GATT_MAX_MTU_SIZE 247
 // <h> nRF_BLE
 
 //==========================================================

@@ -6,7 +6,7 @@ GROUP(-lgcc -lc -lnosys)
 MEMORY
 {
   FLASH (rx) : ORIGIN = 0x1f000, LENGTH = 0x55000 /* 0x77000 and above is reserved for the bootloader+fs, then there's saved JS code. see Makefile, secure_dfu_gcc_nrf52.ld,  linker_nrf52_ble_espruino_bootloader.ld and dfu_types.h, BOARD.py  */
-  RAM (rwx) :  ORIGIN = 0x20002c40, LENGTH = 0xd3c0
+  RAM (rwx) :  ORIGIN = 0x200046c8, LENGTH = 0xb938
 }
 
 SECTIONS
