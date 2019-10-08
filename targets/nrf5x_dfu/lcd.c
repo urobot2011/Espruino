@@ -12,12 +12,10 @@
  * ----------------------------------------------------------------------------
  */
 #include "platform_config.h"
+#include "hardware.h"
 #include "lcd.h"
 
 #ifdef LCD
-#include "nrf_gpio.h"
-#include "nrf_delay.h"
-#include "jspininfo.h"
 
 #define ___ 0
 #define __X 1
@@ -50,11 +48,11 @@ const unsigned short LCD_FONT_3X5[] = { // from 33 up to 127
     PACK_5_TO_16( _X_ , _X_ , _X_ , XXX , _X_ ),
     PACK_5_TO_16( ___ , X__ , __X , ___ , X__ ),
 
-    PACK_5_TO_16( _X_ , _X_ , _X_ , XX_ , _XX ), // ?@ABC
-    PACK_5_TO_16( X_X , X_X , X_X , X_X , X__ ),
+    PACK_5_TO_16( _X_ , ___ , _X_ , XX_ , _XX ), // ?@ABC
+    PACK_5_TO_16( X_X , _X_ , X_X , X_X , X__ ), // @ is used as +
     PACK_5_TO_16( __X , XXX , XXX , XX_ , X__ ),
-    PACK_5_TO_16( ___ , X_X , X_X , X_X , X__ ),
-    PACK_5_TO_16( _X_ , _XX , X_X , XX_ , _XX ),
+    PACK_5_TO_16( ___ , _X_ , X_X , X_X , X__ ),
+    PACK_5_TO_16( _X_ , ___ , X_X , XX_ , _XX ),
 
     PACK_5_TO_16( XX_ , XXX , XXX , _XX , X_X ), // DEFGH
     PACK_5_TO_16( X_X , X__ , X__ , X__ , X_X ),
@@ -80,8 +78,8 @@ const unsigned short LCD_FONT_3X5[] = { // from 33 up to 127
     PACK_5_TO_16( __X , _X_ , X_X , _X_ , XXX ),
     PACK_5_TO_16( XX_ , _X_ , _X_ , _X_ , X_X ),
 
-    PACK_5_TO_16( X_X , X_X , XXX , _XX , ___ ), // XYZ[
-    PACK_5_TO_16( X_X , X_X , __X , _X_ , ___ ),
+    PACK_5_TO_16( X_X , X_X , XXX , _XX , ___ ), // XYZ[\ end
+    PACK_5_TO_16( X_X , X_X , __X , _X_ , ___ ), // \ is used as .
     PACK_5_TO_16( _X_ , _X_ , _X_ , _X_ , ___ ),
     PACK_5_TO_16( X_X , _X_ , X__ , _X_ , ___ ),
     PACK_5_TO_16( X_X , _X_ , XXX , _XX , _X_ ),
@@ -94,23 +92,12 @@ char lcd_data[LCD_ROWSTRIDE*LCD_DATA_HEIGHT];
 int ymin=0,ymax=LCD_DATA_HEIGHT-1;
 #endif
 
-void jshPinSetValue(Pin pin, bool value) {
-  nrf_gpio_pin_write((uint32_t)pinInfo[pin].pin, value);
-}
-void jshPinOutput(Pin pin, bool value) {
-  nrf_gpio_pin_write((uint32_t)pinInfo[pin].pin, value);
-  nrf_gpio_cfg(
-      (uint32_t)pinInfo[pin].pin,
-      NRF_GPIO_PIN_DIR_OUTPUT,
-      NRF_GPIO_PIN_INPUT_DISCONNECT,
-      NRF_GPIO_PIN_NOPULL,
-      NRF_GPIO_PIN_H0H1,
-      NRF_GPIO_PIN_NOSENSE);
-}
+void lcd_flip();
 
 #ifdef LCD_CONTROLLER_ST7567
 void lcd_pixel(int x, int y) {
-  lcd_data[x+((y>>3)<<7)] |= 1<<(y&7); // each byte is vertical
+  // each byte is vertical
+  lcd_data[x+((y>>3)<<7)] |= 1<<(y&7);
 }
 
 void lcd_wr(int data) {
@@ -125,9 +112,6 @@ void lcd_wr(int data) {
 #if defined(LCD_CONTROLLER_ST7789V) || defined(LCD_CONTROLLER_ST7735)
 
 void lcd_pixel(int x, int y) {
-  // flip 180
-  x = LCD_DATA_WIDTH - (x+1);
-  y = LCD_DATA_HEIGHT - (y+1);
   // each byte is horizontal
   lcd_data[(x>>3)+(y*LCD_ROWSTRIDE)] |= 1<<(x&7);
 #ifdef LCD_STORE_MODIFIED
@@ -146,45 +130,6 @@ void lcd_wr(int data) {
   }
 }
 #endif
-
-void lcd_flip();
-
-void lcd_char(int x1, int y1, char ch) {
-  if (ch=='.') ch='\\';
-  int idx = ch - '0';
-  if (idx<0 || idx>=LCD_FONT_3X5_CHARS) return; // no char for this - just return
-  int cidx = idx % 5; // character index
-  idx -= cidx;
-  int y;
-  for (y=0;y<5;y++) {
-    unsigned short line = LCD_FONT_3X5[idx + y] >> (cidx*3);
-    if (line&4) lcd_pixel(x1+0, y+y1);
-    if (line&2) lcd_pixel(x1+1, y+y1);
-    if (line&1) lcd_pixel(x1+2, y+y1);
-  }
-}
-
-void lcd_print(char *ch) {
-  while (*ch) {
-    lcd_char(lcdx,lcdy,*ch);
-    if ('\n'==*ch) {
-      lcdy += 6;
-      if (lcdy>=LCD_HEIGHT-4) {
-        memcpy(lcd_data,&lcd_data[LCD_ROWSTRIDE*8],LCD_ROWSTRIDE*(LCD_HEIGHT-8)); // shift up 8 pixels
-        memset(&lcd_data[LCD_ROWSTRIDE*(LCD_HEIGHT-8)],0,LCD_ROWSTRIDE*8); // fill bottom 8 rows
-        lcdy-=8;
-#ifdef LCD_STORE_MODIFIED
-        ymin=0;
-        ymax=LCD_HEIGHT-1;
-#endif
-      }
-    } else if ('\r'==*ch) {
-      lcdx = 0;
-    } else lcdx += 4;
-    ch++;
-  }
-  lcd_flip();
-}
 
 #ifdef LCD_CONTROLLER_ST7567
 
@@ -213,9 +158,9 @@ void lcd_init() {
   jshPinOutput(LCD_SPI_MOSI,0);
   jshPinOutput(LCD_SPI_RST,0);
   // LCD init 2
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   jshPinSetValue(LCD_SPI_RST,1);
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   const unsigned char LCD_INIT_DATA[] = {
        //0xE2,  // soft reset
        0xA3,   // bias 1/7
@@ -234,7 +179,6 @@ void lcd_init() {
 #endif
 #ifdef LCD_CONTROLLER_ST7789V
 #define LCD_SPI 0
-
 
 void lcd_cmd(int cmd, int dataLen, char *data) {
   jshPinSetValue(LCD_SPI_CS, 0);
@@ -295,31 +239,31 @@ void lcd_init() {
   jshPinOutput(LCD_SPI_SCK,1);
   jshPinOutput(LCD_SPI_MOSI,1);
   jshPinOutput(LCD_SPI_RST,0);
-  nrf_delay_us(100000);
+  jshDelayMicroseconds(100000);
   jshPinOutput(LCD_SPI_RST,1);
-  nrf_delay_us(150000);
+  jshDelayMicroseconds(150000);
   // LCD init 2
   lcd_cmd(0x11, 0, NULL); // SLPOUT
-  nrf_delay_us(150000);
+  jshDelayMicroseconds(150000);
   //lcd_cmd(0x3A, 1, "\x55"); // COLMOD - 16bpp
   lcd_cmd(0x3A, 1, "\x03"); // COLMOD - 12bpp
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0xC6, 1, "\x01"); // Frame rate control in normal mode, 111Hz
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0x36, 1, "\x08"); // MADCTL
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0x21, 0, NULL); // INVON
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0x13, 0, NULL); // NORON
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0x36, 1, "\xC0"); // MADCTL
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0x37, 2, "\0\x50"); // VSCRSADD - vertical scroll
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0x35, 0, NULL); // Tear on
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   lcd_cmd(0x29, 0, NULL); // DISPON
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
 }
 
 void lcd_kill() {
@@ -407,18 +351,18 @@ void lcd_flip() {
     lcd_wr(0x2B);
     jshPinSetValue(LCD_SPI_DC, 1); // data
     lcd_wr(0);
-    lcd_wr(ymin);
+    lcd_wr(LCD_HEIGHT - (ymax+1));
     lcd_wr(0);
-    lcd_wr(ymax+1);
+    lcd_wr(LCD_HEIGHT - ymin);
     jshPinSetValue(LCD_SPI_DC, 0); // command
     jshPinSetValue(LCD_SPI_CS, 1);
     jshPinSetValue(LCD_SPI_CS, 0);
     lcd_wr(0x2C);
     jshPinSetValue(LCD_SPI_DC, 1); // data
-    for (int y=ymin;y<=ymax;y++) {
-      for (int x=0;x<LCD_WIDTH;) {
-        bool a = lcd_data[(x>>3)+(y*LCD_ROWSTRIDE)]&1<<(x&7);x++;
-        bool b = lcd_data[(x>>3)+(y*LCD_ROWSTRIDE)]&1<<(x&7);x++;
+    for (int y=ymax;y>=ymin;y--) {
+      for (int x=LCD_WIDTH-1;x>=0;) {
+        bool a = lcd_data[(x>>3)+(y*LCD_ROWSTRIDE)]&1<<(x&7);x--;
+        bool b = lcd_data[(x>>3)+(y*LCD_ROWSTRIDE)]&1<<(x&7);x--;
         lcd_wr(a?0xFF:0);
         lcd_wr((a?0xF0:0)|(b?0x0F:0));
         lcd_wr(b?0xFF:0);
@@ -439,16 +383,16 @@ void lcd_init() {
   jshPinOutput(LCD_SPI_SCK,1);
   jshPinOutput(LCD_SPI_MOSI,1);
   jshPinOutput(LCD_SPI_RST,0);
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
   jshPinOutput(LCD_SPI_RST, 1);
-  nrf_delay_us(10000);
+  jshDelayMicroseconds(10000);
 
   // Send initialization commands to ST7735
   const char *cmd = ST7735_INIT_CODE;
   while(cmd[CMDINDEX_DATALEN]!=255) {
     lcd_cmd(cmd[CMDINDEX_CMD], cmd[CMDINDEX_DATALEN], &cmd[3]);
     if (cmd[CMDINDEX_DELAY])
-      nrf_delay_us(1000*cmd[CMDINDEX_DELAY]);
+      jshDelayMicroseconds(1000*cmd[CMDINDEX_DELAY]);
     cmd += 3 + cmd[CMDINDEX_DATALEN];
   }
 }
@@ -459,13 +403,53 @@ void lcd_kill() {
 
 #endif
 
+void lcd_char(int x1, int y1, char ch) {
+  // char replacements so we don't waste font space
+  if (ch=='.') ch='\\';
+  if (ch=='+') ch='@';
+  int idx = ch - '0';
+  if (idx<0 || idx>=LCD_FONT_3X5_CHARS) return; // no char for this - just return
+  int cidx = idx % 5; // character index
+  idx -= cidx;
+  int y;
+  for (y=0;y<5;y++) {
+    unsigned short line = LCD_FONT_3X5[idx + y] >> (cidx*3);
+    if (line&4) lcd_pixel(x1+0, y+y1);
+    if (line&2) lcd_pixel(x1+1, y+y1);
+    if (line&1) lcd_pixel(x1+2, y+y1);
+  }
+}
+
+void lcd_print(char *ch) {
+  while (*ch) {
+    lcd_char(lcdx,lcdy,*ch);
+    if ('\n'==*ch) {
+      lcdy += 6;
+      if (lcdy>=LCD_HEIGHT-4) {
+        memcpy(lcd_data,&lcd_data[LCD_ROWSTRIDE*8],LCD_ROWSTRIDE*(LCD_HEIGHT-8)); // shift up 8 pixels
+        memset(&lcd_data[LCD_ROWSTRIDE*(LCD_HEIGHT-8)],0,LCD_ROWSTRIDE*8); // fill bottom 8 rows
+        lcdy-=8;
+#ifdef LCD_STORE_MODIFIED
+        ymin=0;
+        ymax=LCD_HEIGHT-1;
+#endif
+      }
+    } else if ('\r'==*ch) {
+      lcdx = 0;
+    } else lcdx += 4;
+    ch++;
+  }
+  lcd_flip();
+}
+void lcd_println(char *ch) {
+  lcd_print(ch);
+  lcd_print("\r\n");
+}
+
 #else
 // No LCD
 void lcd_init() {}
 void lcd_kill() {}
 void lcd_print(char *ch) {}
+void lcd_println(char *ch) {}
 #endif
-void lcd_println(char *ch) {
-  lcd_print(ch);
-  lcd_print("\r\n");
-}
