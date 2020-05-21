@@ -149,13 +149,8 @@ static uint32_t rx_char_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init
 
     memset(&attr_md, 0, sizeof(attr_md));
 
-    if (p_nus_init->encrypt) {
-      BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&attr_md.read_perm);
-      BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&attr_md.write_perm);
-    } else {
-      BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-      BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-    }
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
 
     attr_md.vloc    = BLE_GATTS_VLOC_STACK;
     attr_md.rd_auth = 0;
@@ -207,13 +202,8 @@ static uint32_t tx_char_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init
 
     memset(&attr_md, 0, sizeof(attr_md));
 
-    if (p_nus_init->encrypt) {
-      BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&attr_md.read_perm);
-      BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&attr_md.write_perm);
-    } else {
-      BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-      BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-    }
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
 
     attr_md.vloc    = BLE_GATTS_VLOC_STACK;
     attr_md.rd_auth = 0;
