@@ -2636,6 +2636,42 @@ JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options) {
 /*JSON{
     "type" : "staticmethod",
     "class" : "NRF",
+    "name" : "getGattforCentralServer",
+    "#if" : "defined(NRF52) || defined(ESP32)",
+    "generate" : "jswrap_ble_getGattforCentralServer",
+    "params" : [
+      ["mac","JsVar","The MAC address to connect to"]
+     ],
+    "return" : ["JsVar", "A `Promise` that is resolved (or rejected) when the connection is complete" ],
+    "return_object" : "Promise"
+}
+*/
+
+JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac) {
+  if (jsble_has_peripheral_connection()) {
+    m_central_conn_handle = m_peripheral_conn_handle;
+    m_peripheral_conn_handle = BLE_CONN_HANDLE_INVALID;
+  } else
+  {
+    return 0;
+  }
+  JsVar *device = jspNewObject(0, "BluetoothDevice");
+  if (!device) return 0;
+  jsvObjectSetChild(device, "id", mac);
+  JsVar *gatt = jswrap_BluetoothDevice_gatt(device);
+  jsvUnLock(device);
+  if (!gatt) return 0;
+  jsvObjectSetChild(gatt, "connected", jsvNewFromBool(true));
+  bleSetActiveBluetoothGattServer(gatt);
+  jsvUnLock(gatt);
+  return gatt;
+}
+
+
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
     "name" : "setWhitelist",
     "ifdef" : "NRF52",
     "generate" : "jswrap_ble_setWhitelist",
@@ -2799,6 +2835,9 @@ NRF.setServices({
   }
 });
 ```
+
+**Note:** If `passkey` or `oob` is specified, the Nordic UART service (if enabled)
+will automatically be set to require encryption, but otherwise it is open.
 */
 void jswrap_ble_setSecurity(JsVar *options) {
   if (!jsvIsObject(options) && !jsvIsUndefined(options))
@@ -2806,6 +2845,9 @@ void jswrap_ble_setSecurity(JsVar *options) {
   else {
     jsvObjectSetOrRemoveChild(execInfo.hiddenRoot, BLE_NAME_SECURITY, options);
     jsble_update_security();
+    // If we need UART to be encrypted, we need to trigger a restart
+    if (bleStatus & BLE_NEEDS_SOFTDEVICE_RESTART)
+      jswrap_ble_restart();
   }
 }
 
