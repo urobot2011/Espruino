@@ -33,7 +33,6 @@
             dump() is now aware of pretokenised code (fix #1821)
             Merge jsvStringIteratorGetChar + jsvStringIteratorNext into jsvStringIteratorGetCharAndNext (fix #1816)
             Fix 2v05 regression that stopped process.uncaughtException from working (had been moved to E.uncaughtException)
-<<<<<<< HEAD
             nRF52: If passkey or oob is set in setSecurity, ensure that the UART connection requires encryption (fix #1705)
             Now report [ERASED] rather than ?[255] if we hit char code 255 while evaluating
             Bangle.js: read `setting.json` at init and modify Bangle.beep/buzz behaviour accordingly
@@ -44,8 +43,6 @@
             Linux: improve command-line, allow recursive test directory and more than one test (eg wildcard + shell expansion)
             Added new vector fonts supporting most of ISO8859-1
             Graphics.fillPoly now uses 4 bit fixed point internally
-=======
->>>>>>> parent of 22c55313... nRF52: If passkey or oob is set in setSecurity, ensure that the UART connection requires encryption (fix #1705)
 
      2v05 : Add Array.includes
             Fix (Number.toFixed) rounding, eg (1234.505).toFixed(2)
