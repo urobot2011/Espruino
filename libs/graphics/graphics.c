@@ -222,6 +222,44 @@ unsigned short graphicsGetHeight(const JsGraphics *gfx) {
   return (gfx->data.flags & JSGRAPHICSFLAGS_SWAP_XY) ? gfx->data.width : gfx->data.height;
 }
 
+// Set the area modified by a draw command and also clip to the screen/clipping bounds
+bool graphicsSetModifiedAndClip(JsGraphics *gfx, int *x1, int *y1, int *x2, int *y2) {
+  bool modified = false;
+#ifndef SAVE_ON_FLASH
+  if (*x1<gfx->data.clipRect.x1) { *x1 = gfx->data.clipRect.x1; modified = true; }
+  if (*y1<gfx->data.clipRect.y1) { *y1 = gfx->data.clipRect.y1; modified = true; }
+  if (*x2>gfx->data.clipRect.x2) { *x2 = gfx->data.clipRect.x2; modified = true; }
+  if (*y2>gfx->data.clipRect.y2) { *y2 = gfx->data.clipRect.y2; modified = true; }
+  if (*x1 < gfx->data.modMinX) { gfx->data.modMinX=(short)*x1; modified = true; }
+  if (*x2 > gfx->data.modMaxX) { gfx->data.modMaxX=(short)*x2; modified = true; }
+  if (*y1 < gfx->data.modMinY) { gfx->data.modMinY=(short)*y1; modified = true; }
+  if (*y2 > gfx->data.modMaxY) { gfx->data.modMaxY=(short)*y2; modified = true; }
+#else
+  if (*x1<0) { *x1 = 0; modified = true; }
+  if (*y1<0) { *y1 = 0; modified = true; }
+  if (*x2>=gfx->data.width) { *x2 = gfx->data.width-1; modified = true; }
+  if (*y2>=gfx->data.height) { *y2 = gfx->data.height-1; modified = true; }
+#endif
+  return modified;
+}
+
+/// Get a setPixel function (assuming coordinates already clipped with graphicsSetModifiedAndClip) - if all is ok it can choose a faster draw function
+JsGraphicsSetPixelFn graphicsGetSetPixelFn(JsGraphics *gfx) {
+  if (gfx->data.flags & JSGRAPHICSFLAGS_MAPPEDXY)
+    return graphicsSetPixel; // fallback
+  else
+    return gfx->setPixel; // fast
+}
+
+/// Get a setPixel function (assuming no clipping by caller) - if all is ok it can choose a faster draw function
+JsGraphicsSetPixelFn graphicsGetSetPixelUnclippedFn(JsGraphics *gfx, int x1, int y1, int x2, int y2) {
+  if ((gfx->data.flags & JSGRAPHICSFLAGS_MAPPEDXY) ||
+      graphicsSetModifiedAndClip(gfx,&x1,&y1,&x2,&y2))
+    return graphicsSetPixel; // fallback
+  else
+    return gfx->setPixel; // fast
+}
+
 // ----------------------------------------------------------------------------------------------
 
 static void graphicsSetPixelDevice(JsGraphics *gfx, int x, int y, unsigned int col) {
@@ -435,8 +473,8 @@ void graphicsFillPoly(JsGraphics *gfx, int points, short *vertices) {
     int vx = v[i].x;
     int vy = v[i].y;
     graphicsToDeviceCoordinates16x(gfx, &vx, &vy);
-    v[i].x = (short)vx;
-    v[i].y = (short)vy;
+    v[i].x = (short)(vx-8);
+    v[i].y = (short)(vy-8);
     // work out min and max
     short y = v[i].y>>4;
     if (y<miny) miny=y;
@@ -460,12 +498,11 @@ void graphicsFillPoly(JsGraphics *gfx, int points, short *vertices) {
     // work out all the times lines cross the scanline
     j = points-1;
     for (i=0;i<points;i++) {
-      if ((v[i].y<=y && v[j].y>=y) ||
-          (v[j].y<=y && v[i].y>=y)) {
+      if ((v[i].y<=y && v[j].y>y) || (v[j].y<=y && v[i].y>y)) {
         if (crosscnt < MAX_CROSSES) {
           int l = v[j].y - v[i].y;
           if (l) { // don't do horiz lines - rely on the ends of the lines that join onto them
-            cross[crosscnt] = (short)(v[i].x + ((y - v[i].y) * (v[j].x-v[i].x)) / l);
+            cross[crosscnt] = (short)(8 + v[i].x + ((y - v[i].y) * (v[j].x-v[i].x)) / l);
             slopes[crosscnt] = (l>1)?1:0;
             crosscnt++;
           }
@@ -492,8 +529,12 @@ void graphicsFillPoly(JsGraphics *gfx, int points, short *vertices) {
     for (i=0;i<crosscnt;i++) {
       if (s==0) x=cross[i];
       if (slopes[i]) s++; else s--;
-      if (!s || i==crosscnt-1)
-        graphicsFillRectDevice(gfx,x>>4,y>>4,cross[i]>>4,y>>4,gfx->data.fgColor);
+      if (!s || i==crosscnt-1) {
+        int x1 = x>>4;
+        int x2 = (cross[i]>>4);
+        if (x2>x1) x2--;
+        graphicsFillRectDevice(gfx,x1,y>>4,x2,y>>4,gfx->data.fgColor);
+      }
       if (jspIsInterrupted()) break;
     }
   }

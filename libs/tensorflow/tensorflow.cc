@@ -13,11 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/lite/experimental/micro/kernels/all_ops_resolver.h"
-#include "tensorflow/lite/experimental/micro/micro_error_reporter.h"
-#include "tensorflow/lite/experimental/micro/micro_interpreter.h"
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#ifdef TENSORFLOW_ALL_OPS
+#include "tensorflow/lite/micro/kernels/all_ops_resolver.h"
+#else
+#include "tensorflow/lite/micro/kernels/micro_ops.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#endif
 #include "tensorflow/lite/core/api/error_reporter.h"
-#include "tensorflow/lite/experimental/micro/compatibility.h"
+#include "tensorflow/lite/micro/compatibility.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/version.h"
 extern "C" {
@@ -39,14 +43,18 @@ class EspruinoErrorReporter : public ErrorReporter {
   }
   TF_LITE_REMOVE_VIRTUAL_DELETE
 };
-
-}
+}  // namespace tflite
 
 typedef struct {
   // logging
   tflite::EspruinoErrorReporter micro_error_reporter;
   // This pulls in the operation implementations we need
+#ifdef TENSORFLOW_ALL_OPS
   tflite::ops::micro::AllOpsResolver resolver;
+#else
+#define TENSORFLOW_OP_COUNT 16 // op count refers to sum of (version_max+1-version_min) for all actual ops
+  tflite::MicroOpResolver<TENSORFLOW_OP_COUNT> resolver;
+#endif
   // Build an interpreter to run the model with
   tflite::MicroInterpreter interpreter;
   // Create an area of memory to use for input, output, and intermediate arrays.
@@ -76,7 +84,24 @@ bool tf_create(void *dataPtr, size_t arena_size, const char *model_data) {
     return false;
   }
 
+#ifdef TENSORFLOW_ALL_OPS
   new (&tf->resolver)tflite::ops::micro::AllOpsResolver();
+#else
+  // Pull in only the operation implementations we need.
+  new (&tf->resolver)tflite::MicroOpResolver<TENSORFLOW_OP_COUNT>();
+  tf->resolver.AddBuiltin( tflite::BuiltinOperator_DEPTHWISE_CONV_2D,
+                           tflite::ops::micro::Register_DEPTHWISE_CONV_2D(), 1, 3);
+  tf->resolver.AddBuiltin( tflite::BuiltinOperator_CONV_2D,
+                           tflite::ops::micro::Register_CONV_2D(), 1, 3);
+  tf->resolver.AddBuiltin( tflite::BuiltinOperator_AVERAGE_POOL_2D,
+                           tflite::ops::micro::Register_AVERAGE_POOL_2D(), 1, 2);
+  tf->resolver.AddBuiltin( tflite::BuiltinOperator_MAX_POOL_2D,
+                           tflite::ops::micro::Register_MAX_POOL_2D(), 1, 2);
+  tf->resolver.AddBuiltin( tflite::BuiltinOperator_FULLY_CONNECTED,
+                           tflite::ops::micro::Register_FULLY_CONNECTED(), 1, 4);
+  tf->resolver.AddBuiltin( tflite::BuiltinOperator_SOFTMAX,
+                           tflite::ops::micro::Register_SOFTMAX(), 1, 2);
+#endif
 
   // Build an interpreter to run the model with
   new (&tf->interpreter)tflite::MicroInterpreter(
@@ -85,20 +110,6 @@ bool tf_create(void *dataPtr, size_t arena_size, const char *model_data) {
 
   // Allocate memory from the tensor_arena for the model's tensors
   tf->interpreter.AllocateTensors();
-
-
-  /*
-   TfLiteTensor* input = tf->interpreter.input(0);
-   TfLiteTensor* output = tf->interpreter.output(0);
-
-  // Place our calculated x value in the model's input tensor
-  input->data.f[0] = x_val;
-
-
-
-  // Read the predicted y value from the model's output tensor
-  float y_val = output->data.f[0];*/
-
   return true;
 }
 
