@@ -51,6 +51,19 @@
             Puck.js: Switch to IRQs for magnetometer (lower power consumption)
             Improve Graphics.drawImage speed and simplify code by allowing fast path for non-rotated graphics
             Tensorflow: updated to v2.2, removed un-needed ops (reduces size by 24k)
+            Puck.js: Fix Puck.magTemp();
+            Puck.js v1: Fix magnetometer reading after puck.magOn (2v05 regression) - use old software I2C implementation
+            I2C: Improve software I2C (now quickly forces I2C high before pullup, to help improve clock speed)
+            Bangle.js: Fix GPS-raw events to provde also u-blox UBX Protocol messages (fix #1838)
+            Bangle.js: Save RAM in GPS handling, allow arbitrary length data returned (fix #1843)
+            Tensorflow updated to current 'master' version
+            Bangle.js: Improve SPI flash speed by with specific function for reading and keeping CS asserted (fix #1849)
+            Bangle.js: Ensure BTN3 exits debug mode (fix #1842)
+            Bangle.js: Now warn if GPS data overflows (fix #1847)
+            Fix double unlock in load(filename)
+            Bangle.js: Fix occasional execution errors when executing from Flash (fix #1854)
+            Add Graphics.transformVertices()
+            Re-add Graphics.quadraticBezier for Bangle.js, move to integer math to halve fn size
 
      2v05 : Add Array.includes
             Fix (Number.toFixed) rounding, eg (1234.505).toFixed(2)

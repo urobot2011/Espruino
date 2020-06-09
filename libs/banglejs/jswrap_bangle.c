@@ -146,7 +146,7 @@ You can also retrieve the most recent reading with `Bangle.getCompass()`.
   "params" : [["nmea","JsVar",""]],
   "ifdef" : "BANGLEJS"
 }
-Raw NMEA GPS data lines received as a string
+Raw NMEA GPS / u-blox data messages received as a string
 
 To get this event you must turn the GPS on
 with `Bangle.setGPSPower(1)`.
@@ -277,10 +277,27 @@ or right hand side.
 #define ACCEL_HISTORY_LEN 50 ///< Number of samples of accelerometer history
 #define HRM_HISTORY_LEN 256
 
-uint8_t nmeaCount = 0; // how many characters of NMEA data do we have?
-char nmeaIn[NMEA_MAX_SIZE]; //  82 is the max for NMEA
-char nmeaLine[NMEA_MAX_SIZE]; // A line of received NMEA data
+/// Handling data coming from UBlox GPS
+typedef enum {
+  UBLOX_PROTOCOL_NOT_DETECTED = 0,
+  UBLOX_PROTOCOL_NMEA = 1,
+  UBLOX_PROTOCOL_UBX = 2
+} UBloxProtocol;
+/// What protocol is the current packet??
+UBloxProtocol inComingUbloxProtocol = UBLOX_PROTOCOL_NOT_DETECTED;
+/// how many characters of NMEA/UBX data do we have in ubloxIn
+uint16_t ubloxInLength = 0;
+/// Data received from IRQ
+uint8_t ubloxIn[NMEA_MAX_SIZE]; //  82 is the max for NMEA
+/// UBlox UBX message expected length
+uint16_t ubloxMsgPayloadEnd = 0;
+/// length of data to be handled in jswrap_banglejs_idle
+uint8_t ubloxMsgLength = 0;
+/// GPS data to be handled in jswrap_banglejs_idle
+char ubloxMsg[NMEA_MAX_SIZE];
+/// GPS fix data converted from GPS
 NMEAFixInfo gpsFix;
+
 
 typedef struct {
   short x,y,z;
@@ -409,25 +426,26 @@ volatile JsBangleFlags bangleFlags;
 
 typedef enum {
   JSBT_NONE,
-  JSBT_LCD_ON = 1,
-  JSBT_LCD_OFF = 2,
-  JSBT_ACCEL_DATA = 4, ///< need to push xyz data to JS
-  JSBT_ACCEL_TAPPED = 8, ///< tap event detected
-  JSBT_GPS_DATA = 16, ///< we got a complete set of GPS data in 'gpsFix'
-  JSBT_GPS_DATA_LINE = 32, ///< we got a line of GPS data
-  JSBT_MAG_DATA = 64, ///< need to push magnetometer data to JS
-  JSBT_RESET = 128, ///< reset the watch and reload code from flash
-  JSBT_GESTURE_DATA = 256, ///< we have data from a gesture
-  JSBT_CHARGE_EVENT = 512, ///< we need to fire a charging event
-  JSBT_STEP_EVENT = 1024, ///< we've detected a step via the pedometer
-  JSBT_SWIPE_LEFT = 2048, ///< swiped left over touchscreen
-  JSBT_SWIPE_RIGHT = 4096, ///< swiped right over touchscreen
+  JSBT_LCD_ON = 1<<0,
+  JSBT_LCD_OFF = 1<<1,
+  JSBT_ACCEL_DATA = 1<<2, ///< need to push xyz data to JS
+  JSBT_ACCEL_TAPPED = 1<<3, ///< tap event detected
+  JSBT_GPS_DATA = 1<<4, ///< we got a complete set of GPS data in 'gpsFix'
+  JSBT_GPS_DATA_LINE = 1<<5, ///< we got a line of GPS data
+  JSBT_GPS_DATA_PARTIAL = 1<<6, ///< we got some GPS data but it needs storing for later because it was too big to go in our buffer
+  JSBT_MAG_DATA = 1<<7, ///< need to push magnetometer data to JS
+  JSBT_RESET = 1<<8, ///< reset the watch and reload code from flash
+  JSBT_GESTURE_DATA = 1<<9, ///< we have data from a gesture
+  JSBT_CHARGE_EVENT = 1<<10, ///< we need to fire a charging event
+  JSBT_STEP_EVENT = 1<<11, ///< we've detected a step via the pedometer
+  JSBT_SWIPE_LEFT = 1<<12, ///< swiped left over touchscreen
+  JSBT_SWIPE_RIGHT = 1<<13, ///< swiped right over touchscreen
   JSBT_SWIPE_MASK = JSBT_SWIPE_LEFT | JSBT_SWIPE_RIGHT,
-  JSBT_TOUCH_LEFT = 8192, ///< touch lhs of touchscreen
-  JSBT_TOUCH_RIGHT = 16384, ///< touch rhs of touchscreen
+  JSBT_TOUCH_LEFT = 1<<14, ///< touch lhs of touchscreen
+  JSBT_TOUCH_RIGHT = 1<<15, ///< touch rhs of touchscreen
   JSBT_TOUCH_MASK = JSBT_TOUCH_LEFT | JSBT_TOUCH_RIGHT,
-  JSBT_HRM_DATA = 32768, ///< Heart rate data is ready for analysis
-  JSBT_TWIST_EVENT = 65536, ///< Watch was twisted
+  JSBT_HRM_DATA = 1<<16, ///< Heart rate data is ready for analysis
+  JSBT_TWIST_EVENT = 1<<17, ///< Watch was twisted
 } JsBangleTasks;
 JsBangleTasks bangleTasks;
 
@@ -472,6 +490,11 @@ void peripheralPollHandler() {
       if (btn1Timer >= BTN_LOAD_TIMEOUT) {
         bangleTasks |= JSBT_RESET;
         btn1Timer = TIMER_MAX;
+        // Allow BTN3 to break out of debugger
+        if (jsiStatus & JSIS_IN_DEBUGGER) {
+          jsiStatus |= JSIS_EXIT_DEBUGGER;
+          execInfo.execute |= EXEC_INTERRUPTED;
+        }
         // execInfo.execute |= EXEC_CTRL_C|EXEC_CTRL_C_WAIT; // set CTRLC
       }
     }
@@ -1179,6 +1202,12 @@ void jswrap_banglejs_setHRMPower(bool isOn) {
 #endif
 }
 
+void resetUbloxIn() {
+  ubloxInLength = 0;
+  ubloxMsgPayloadEnd = 0;
+  inComingUbloxProtocol = UBLOX_PROTOCOL_NOT_DETECTED;
+}
+
 /*JSON{
     "type" : "staticmethod",
     "class" : "Bangle",
@@ -1210,7 +1239,7 @@ void jswrap_banglejs_setGPSPower(bool isOn) {
     inf.pinTX = GPS_PIN_TX;
     jshUSARTSetup(GPS_UART, &inf);
     jswrap_banglejs_ioWr(IOEXP_GPS, 1); // GPS on
-    nmeaCount = 0;
+    resetUbloxIn();
     memset(&gpsFix,0,sizeof(gpsFix));
   } else {
     jswrap_banglejs_ioWr(IOEXP_GPS, 0); // GPS off
@@ -1636,11 +1665,23 @@ bool jswrap_banglejs_idle() {
       jsvUnLock(o);
     }
   }
-  if (bangle && (bangleTasks & JSBT_GPS_DATA_LINE)) {
-    JsVar *line = jsvNewFromString(nmeaLine);
-    if (line) {
-      jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"GPS-raw", &line, 1);
+  if (bangle && (bangleTasks & JSBT_GPS_DATA_PARTIAL)) {
+    JsVar *data = jsvObjectGetChild(bangle,"_gpsdata",0);
+    if (!data) {
+      data = jsvNewFromEmptyString();
+      jsvObjectSetChild(bangle,"_gpsdata",data);
     }
+    jsvAppendStringBuf(data, ubloxMsg, ubloxMsgLength);
+    jsvUnLock(data);
+  }
+  if (bangle && (bangleTasks & JSBT_GPS_DATA_LINE)) {
+    JsVar *line = jsvObjectGetChild(bangle,"_gpsdata",0);
+    if (line) {
+      jsvObjectRemoveChild(bangle,"_gpsdata");
+      jsvAppendStringBuf(line, ubloxMsg, ubloxMsgLength);
+    } else line = jsvNewStringOfLength(ubloxMsgLength, ubloxMsg);
+    if (line)
+      jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"GPS-raw", &line, 1);
     jsvUnLock(line);
   }
   if (bangle && (bangleTasks & JSBT_MAG_DATA)) {
@@ -1829,29 +1870,83 @@ bool jswrap_banglejs_idle() {
   "generate" : "jswrap_banglejs_gps_character"
 }*/
 bool jswrap_banglejs_gps_character(char ch) {
-  if (ch=='\r') return true; // we don't care
   // if too many chars, roll over since it's probably because we skipped a newline
-  if (nmeaCount>=sizeof(nmeaIn)) nmeaCount=0;
-  nmeaIn[nmeaCount++]=ch;
-  if (ch!='\n') return true; // now handled
-  // Now we have a line of GPS data...
-/*  $GNRMC,161945.00,A,5139.11397,N,00116.07202,W,1.530,,190919,,,A*7E
-    $GNVTG,,T,,M,1.530,N,2.834,K,A*37
-    $GNGGA,161945.00,5139.11397,N,00116.07202,W,1,06,1.29,71.1,M,47.0,M,,*64
-    $GNGSA,A,3,09,06,23,07,03,29,,,,,,,1.96,1.29,1.48*14
-    $GPGSV,3,1,12,02,45,293,13,03,10,109,16,05,13,291,,06,56,213,25*73
-    $GPGSV,3,2,12,07,39,155,18,09,76,074,33,16,08,059,,19,02,218,18*7E
-    $GPGSV,3,3,12,23,40,066,23,26,08,033,18,29,07,342,20,30,14,180,*7F
-    $GNGLL,5139.11397,N,00116.07202,W,161945.00,A,A*69 */
-  // Let's just chuck it over into JS-land for now
-  if (nmeaCount>1) {
-    memcpy(nmeaLine, nmeaIn, nmeaCount);
-    nmeaLine[nmeaCount-1]=0; // just overwriting \n
-    bangleTasks |= JSBT_GPS_DATA_LINE;
-    if (nmea_decode(&gpsFix, nmeaLine))
-      bangleTasks |= JSBT_GPS_DATA;
+  // or messed the message length
+  if (ubloxInLength >= sizeof(ubloxIn)) {
+    if (inComingUbloxProtocol == UBLOX_PROTOCOL_UBX &&
+        ubloxMsgPayloadEnd > ubloxInLength) {
+      if (bangleTasks & (JSBT_GPS_DATA_PARTIAL|JSBT_GPS_DATA_LINE)) {
+        // we were already waiting to post data, so lets not overwrite it
+        jsErrorFlags |= JSERR_RX_FIFO_FULL;
+      } else {
+        memcpy(ubloxMsg, ubloxIn, ubloxInLength);
+        ubloxMsgLength = ubloxInLength;
+        bangleTasks |= JSBT_GPS_DATA_PARTIAL;
+      }
+      ubloxMsgPayloadEnd -= ubloxInLength;
+      ubloxInLength = 0;
+    } else
+      resetUbloxIn();
   }
-  nmeaCount = 0;
+  if (inComingUbloxProtocol == UBLOX_PROTOCOL_NOT_DETECTED) {
+    ubloxInLength = 0;
+    if (ch == '$') {
+      inComingUbloxProtocol = UBLOX_PROTOCOL_NMEA;
+    } else if (ch == 0xB5) {
+      inComingUbloxProtocol = UBLOX_PROTOCOL_UBX;
+      ubloxMsgPayloadEnd = 0;
+    }
+  }
+  ubloxIn[ubloxInLength++] = ch;
+  if (inComingUbloxProtocol == UBLOX_PROTOCOL_NMEA && ch == '\n') {
+    // Now we have a line of GPS data...
+    /*$GNRMC,161945.00,A,5139.11397,N,00116.07202,W,1.530,,190919,,,A*7E
+      $GNVTG,,T,,M,1.530,N,2.834,K,A*37
+      $GNGGA,161945.00,5139.11397,N,00116.07202,W,1,06,1.29,71.1,M,47.0,M,,*64
+      $GNGSA,A,3,09,06,23,07,03,29,,,,,,,1.96,1.29,1.48*14
+      $GPGSV,3,1,12,02,45,293,13,03,10,109,16,05,13,291,,06,56,213,25*73
+      $GPGSV,3,2,12,07,39,155,18,09,76,074,33,16,08,059,,19,02,218,18*7E
+      $GPGSV,3,3,12,23,40,066,23,26,08,033,18,29,07,342,20,30,14,180,*7F
+      $GNGLL,5139.11397,N,00116.07202,W,161945.00,A,A*69 */
+    // Let's just chuck it over into JS-land for now
+    if (ubloxInLength > 2 && ubloxInLength <= NMEA_MAX_SIZE && ubloxIn[ubloxInLength - 2] =='\r') {
+      ubloxIn[ubloxInLength - 2] = 0; // just overwriting \r\n
+      ubloxIn[ubloxInLength - 1] = 0;
+      if (nmea_decode(&gpsFix, ubloxIn))
+        bangleTasks |= JSBT_GPS_DATA;
+      if (bangleTasks & (JSBT_GPS_DATA_PARTIAL|JSBT_GPS_DATA_LINE)) {
+        // we were already waiting to post data, so lets not overwrite it
+        jsErrorFlags |= JSERR_RX_FIFO_FULL;
+      } else {
+        memcpy(ubloxMsg, ubloxIn, ubloxInLength);
+        ubloxMsgLength = ubloxInLength - 2;
+        bangleTasks |= JSBT_GPS_DATA_LINE;
+      }
+    }
+    resetUbloxIn();
+  } else if (inComingUbloxProtocol == UBLOX_PROTOCOL_UBX) {
+    if (!ubloxMsgPayloadEnd) {
+      if (ubloxInLength == 2 && ch != 0x62) { // Invalid u-blox protocol message, missing header second byte
+        resetUbloxIn();
+      } else if (ubloxInLength == 6) {
+        // Header: 0xB5 0x62, Class: 1 byte, ID: 1 byte, Length: 2 bytes, data..., CRC: 2 bytes
+        ubloxMsgPayloadEnd = 6 + ((ubloxIn[5] << 8) | ubloxIn[4]) + 2;
+        if (ubloxMsgPayloadEnd < ubloxInLength) { // Length is some odd way horribly wrong
+          resetUbloxIn();
+        }
+      }
+    } else if (ubloxInLength >= ubloxMsgPayloadEnd) {
+      if (bangleTasks & (JSBT_GPS_DATA_PARTIAL|JSBT_GPS_DATA_LINE)) {
+        // we were already waiting to post data, so lets not overwrite it
+        jsErrorFlags |= JSERR_RX_FIFO_FULL;
+      } else {
+        memcpy(ubloxMsg, ubloxIn, ubloxInLength);
+        ubloxMsgLength = ubloxInLength;
+        bangleTasks |= JSBT_GPS_DATA_LINE;
+      }
+      resetUbloxIn();
+    }
+  }
   return true; // handled
 }
 
@@ -2347,7 +2442,7 @@ var mainmenu = {
     min:0,max:100,step:10,
     onchange : v => { number=v; }
   },
-  "Exit" : function() { E.showMenu(); },
+  "Exit" : function() { E.showMenu(); }, // remove the menu
 };
 // Submenu
 var submenu = {
@@ -2359,6 +2454,9 @@ var submenu = {
 // Actually display the menu
 E.showMenu(mainmenu);
 ```
+
+The menu will stay onscreen and active until explicitly removed,
+which you can do by calling `E.showMenu()` without arguments.
 
 See http://www.espruino.com/graphical_menu for more detailed information.
 */

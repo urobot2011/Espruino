@@ -2602,7 +2602,7 @@ void jswrap_graphics_dump(JsVar *parent) {
   "type" : "method",
   "class" : "Graphics",
   "name" : "quadraticBezier",
-  "#if" : "!defined(SAVE_ON_FLASH) && !defined(ESPRUINOBOARD) && !defined(BANGLEJS)",
+  "#if" : "!defined(SAVE_ON_FLASH) && !defined(ESPRUINOBOARD)",
   "generate" : "jswrap_graphics_quadraticBezier",
   "params" : [
     ["arr","JsVar","An array of three vertices, six enties in form of ```[x0,y0,x1,y1,x2,y2]```"],
@@ -2625,43 +2625,134 @@ JsVar *jswrap_graphics_quadraticBezier( JsVar *parent, JsVar *arr, JsVar *option
 
   if (jsvGetArrayLength(arr) != 6) return result;
 
-  double s,t,t2,tp2, tpt;
   int sn = 5;
-  int dx, dy;
-  int x0, x1, x2, y0, y1, y2;
+  typedef struct { int x,y; } XY;
+  XY xy[3];
   int count = 0;
 
   JsvIterator it;
   jsvIteratorNew(&it, arr, JSIF_EVERY_ARRAY_ELEMENT);
-  x0 = jsvIteratorGetIntegerValue(&it); jsvIteratorNext(&it);
-  y0 = jsvIteratorGetIntegerValue(&it); jsvIteratorNext(&it);
-  x1 = jsvIteratorGetIntegerValue(&it); jsvIteratorNext(&it);
-  y1 = jsvIteratorGetIntegerValue(&it); jsvIteratorNext(&it);
-  x2 = jsvIteratorGetIntegerValue(&it); jsvIteratorNext(&it);
-  y2 = jsvIteratorGetIntegerValue(&it); jsvIteratorFree(&it);
+  for (int i=0;i<6;i++) {
+    ((int*)xy)[i] = jsvIteratorGetIntegerValue(&it);
+    jsvIteratorNext(&it);
+  }
+  jsvIteratorFree(&it);
+
 
   if (jsvIsObject(options)) count = jsvGetIntegerAndUnLock(jsvObjectGetChild(options,"count",0));
 
-  dx = (x0 - x2) < 0 ? (x2-x0):(x0-x2);
-  dy = (y0 - y2) < 0 ? (y2-y0):(y0-y2);
-  s =  1 / (double) (((dx < dy) ? dx : dy ) / sn );
-  if ( s >= 1)  s = 0.33;
-  if ( s < 0.1) s = 0.1;
-  if (count > 0) s = 1.0 / count;
+  const int FP_MUL = 4096;
+  const int FP_SHIFT = 12;
+  int dx = xy[0].x - xy[2].x;
+  if (dx<0) dx=-dx;
+  int dy = xy[0].y - xy[2].y;
+  if (dy<0) dy=-dy;
+  int dmin = (dx < dy) ? dx : dy;
+  if (dmin==0) dmin=1;
+  int s =  FP_MUL*sn / dmin;
+  if ( s >= FP_MUL)  s = FP_MUL/3;
+  if ( s < FP_MUL/10) s = FP_MUL/10;
+  if (count > 0) s = FP_MUL / count;
 
-  jsvArrayPushAndUnLock(result, jsvNewFromInteger(x0));
-  jsvArrayPushAndUnLock(result, jsvNewFromInteger(y0));
+  jsvArrayPush2Int(result, xy[0].x, xy[0].y);
 
-  for ( t = s; t <= 1; t += s ) {
-    t2 = t*t;
-    tp2 = (1 - t) * (1 - t);
-    tpt = 2 * (1 - t) * t;
-    jsvArrayPushAndUnLock(result, jsvNewFromInteger((int)(x0 * tp2 + x1 * tpt + x2 * t2 + 0.5)));
-    jsvArrayPushAndUnLock(result, jsvNewFromInteger((int)(y0 * tp2 + y1 * tpt + y2 * t2 + 0.5)));
+  for ( int t = s; t <= FP_MUL; t += s ) {
+    int t2 = (t*t) >> FP_SHIFT;
+    int tp2 = ((FP_MUL - t) * (FP_MUL - t)) >> FP_SHIFT;
+    int tpt = (2 * (FP_MUL - t) * t) >> FP_SHIFT;
+    jsvArrayPush2Int(result,
+        (xy[0].x * tp2 + xy[1].x * tpt + xy[2].x * t2 + (FP_MUL/2)) >> FP_SHIFT,
+        (xy[0].y * tp2 + xy[1].y * tpt + xy[2].y * t2 + (FP_MUL/2)) >> FP_SHIFT);
   }
 
-  jsvArrayPushAndUnLock(result, jsvNewFromInteger(x2));
-  jsvArrayPushAndUnLock(result, jsvNewFromInteger(y2));
+  jsvArrayPush2Int(result, xy[2].x, xy[2].y);
 
   return  result;
+}
+
+/*JSON{
+  "type" : "method",
+  "class" : "Graphics",
+  "name" : "transformVertices",
+  "ifndef" : "SAVE_ON_FLASH",
+  "generate" : "jswrap_graphics_transformVertices",
+  "params" : [
+    ["verts","JsVar","An array of vertices, of the form ```[x1,y1,x2,y2,x3,y3,etc]```"],
+    ["transformation","JsVar","The transformation to apply, either an Object or an Array (see below)"]
+  ],
+  "return" : ["JsVar", "Array of transformed vertices" ]
+}
+Transformation can be:
+
+* An object of the form
+```
+{
+  x: float, // x offset (default 0)
+  y: float, // y offset (default 0)
+  scale: float, // scale factor (default 1)
+  rotation: float, // angle in radians (default 0)
+}
+```
+* A six-element array of the form `[a,b,c,d,e,f]`, which represents the 2D transformation matrix
+```
+a c e
+b d f
+0 0 1
+```
+
+ Apply a transformation to an array of vertices.
+*/
+JsVar *jswrap_graphics_transformVertices(JsVar *parent, JsVar *verts, JsVar *transformation) {
+  NOT_USED(parent);
+  JsVar *result = jsvNewEmptyArray();
+  if (!result) return 0;
+  if (!jsvIsIterable(verts)) return result;
+
+  double m[6];
+
+  if (jsvIsObject(transformation)) {
+    double x=0, y=0, scale=1, rotate=0;
+    jsvConfigObject configs[] = {
+        {"x", JSV_FLOAT, &x},
+        {"y", JSV_FLOAT, &y},
+        {"scale", JSV_FLOAT, &scale},
+        {"rotate", JSV_FLOAT, &rotate}
+    };
+    if (!jsvReadConfigObject(transformation, configs, sizeof(configs) / sizeof(jsvConfigObject)))
+        return result;
+    double cosr = 1, sinr = 0;
+    if (rotate) {
+      cosr = cos(rotate);
+      sinr = sin(rotate);
+    }
+    m[0] = cosr*scale; m[2] = -sinr*scale; m[4] = x;
+    m[1] = sinr*scale; m[3] = cosr*scale; m[5] = y;
+  } else if (jsvIsIterable(transformation) && jsvGetLength(transformation) == 6) {
+    JsvIterator it;
+    jsvIteratorNew(&it, transformation, JSIF_EVERY_ARRAY_ELEMENT);
+    for (int i = 0; i < 6; ++i) {
+      m[i] = jsvIteratorGetFloatValue(&it);
+      jsvIteratorNext(&it);
+    }
+    jsvIteratorFree(&it);
+  } else {
+    jsExceptionHere(JSET_TYPEERROR,"Expected either an object or an array with 6 entries for second argument");
+    return 0;
+  }
+
+  JsvIterator it;
+  jsvIteratorNew(&it, verts, JSIF_EVERY_ARRAY_ELEMENT);
+  while (jsvIteratorHasElement(&it)) {
+    double x = jsvIteratorGetFloatValue(&it);
+    jsvIteratorNext(&it);
+    if (!jsvIteratorHasElement(&it)) break;
+    double y = jsvIteratorGetFloatValue(&it);
+    jsvIteratorNext(&it);
+
+    jsvArrayPushAndUnLock(result, jsvNewFromFloat(m[0]*x + m[2]*y + m[4]));
+    jsvArrayPushAndUnLock(result, jsvNewFromFloat(m[1]*x + m[3]*y + m[5]));
+  }
+  jsvIteratorFree(&it);
+
+  return result;
 }

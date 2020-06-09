@@ -353,19 +353,24 @@ static jshUARTState uart[USART_COUNT];
 void jshUSARTUnSetup(IOEventFlags device);
 
 #ifdef SPIFLASH_BASE
-static void spiFlashReadWrite(unsigned char *tx, unsigned char *rx, unsigned int len) {
+/* 0 means CS is not enabled. If nonzero CS is enabled
+and we're in the middle of reading We'd never be at 0
+anyway because we're always expecting to have read something.  */
+uint32_t spiFlashLastAddress = 0;
+/// Read data while sending 0
+static void spiFlashRead(unsigned char *rx, unsigned int len) {
+  nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_MOSI].pin);
   for (unsigned int i=0;i<len;i++) {
-    int data = tx[i];
     int result = 0;
-    for (int bit=7;bit>=0;bit--) {
-      nrf_gpio_pin_write((uint32_t)pinInfo[SPIFLASH_PIN_MOSI].pin, (data>>bit)&1 );
+    for (int bit=0;bit<8;bit++) {
       nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
       result = (result<<1) | nrf_gpio_pin_read((uint32_t)pinInfo[SPIFLASH_PIN_MISO].pin);
       nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
     }
-    if (rx) rx[i] = result;
+    rx[i] = result;
   }
 }
+
 static void spiFlashWrite(unsigned char *tx, unsigned int len) {
   for (unsigned int i=0;i<len;i++) {
     int data = tx[i];
@@ -382,11 +387,12 @@ static void spiFlashWriteCS(unsigned char *tx, unsigned int len) {
   nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
 }
 static unsigned char spiFlashStatus() {
-  unsigned char buf[2] = {5,0};
+  unsigned char buf = 5;
   nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-  spiFlashReadWrite(buf, buf, 2);
+  spiFlashWrite(&buf, 1);
+  spiFlashRead(&buf, 1);
   nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-  return buf[1];
+  return buf;
 }
 #endif
 
@@ -552,9 +558,9 @@ void jshResetPeripherals() {
   jshPinSetState(SPIFLASH_PIN_WP, JSHPINSTATE_GPIO_OUT);
 #endif
   jshPinSetValue(SPIFLASH_PIN_CS, 1);
+  jshPinSetState(SPIFLASH_PIN_CS, JSHPINSTATE_GPIO_OUT);
   jshPinSetValue(SPIFLASH_PIN_MOSI, 1);
   jshPinSetValue(SPIFLASH_PIN_SCK, 1);
-  jshPinSetState(SPIFLASH_PIN_CS, JSHPINSTATE_GPIO_OUT);
   jshPinSetState(SPIFLASH_PIN_MISO, JSHPINSTATE_GPIO_IN);
   jshPinSetState(SPIFLASH_PIN_MOSI, JSHPINSTATE_GPIO_OUT);
   jshPinSetState(SPIFLASH_PIN_SCK, JSHPINSTATE_GPIO_OUT);
@@ -564,6 +570,7 @@ void jshResetPeripherals() {
   jshDelayMicroseconds(100);
   jshPinSetValue(SPIFLASH_PIN_RST, 1); // reset off
 #endif
+  spiFlashLastAddress = 0;
   jshDelayMicroseconds(100);
   // disable lock bits
   unsigned char buf[2];
@@ -1809,6 +1816,11 @@ void jshFlashErasePage(uint32_t addr) {
 #ifdef SPIFLASH_BASE
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
+    // disable CS if jshFlashRead had left it set
+    if (spiFlashLastAddress) {
+      nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+      spiFlashLastAddress = 0;
+    }
     //jsiConsolePrintf("SPI Erase %d\n",addr);
     unsigned char b[4];
     // WREN
@@ -1850,17 +1862,19 @@ void jshFlashRead(void * buf, uint32_t addr, uint32_t len) {
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
     //jsiConsolePrintf("SPI Read %d %d\n",addr,len);
-    unsigned char b[4];
-    // Read
-    b[0] = 0x03;
-    b[1] = addr>>16;
-    b[2] = addr>>8;
-    b[3] = addr;
-    jshPinSetValue(SPIFLASH_PIN_CS,0);
-    spiFlashWrite(b,4);
-    memset(buf,0,len); // ensure we just send 0
-    spiFlashReadWrite((unsigned char*)buf,(unsigned char*)buf,len);
-    jshPinSetValue(SPIFLASH_PIN_CS,1);
+    if (spiFlashLastAddress==0 || spiFlashLastAddress!=addr) {
+      nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+      unsigned char b[4];
+      // Read
+      b[0] = 0x03;
+      b[1] = addr>>16;
+      b[2] = addr>>8;
+      b[3] = addr;
+      nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+      spiFlashWrite(b,4);
+    }
+    spiFlashRead((unsigned char*)buf,len);
+    spiFlashLastAddress = addr + len;
     return;
   }
 #endif
@@ -1875,6 +1889,11 @@ void jshFlashWrite(void * buf, uint32_t addr, uint32_t len) {
 #ifdef SPIFLASH_BASE
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
+    // disable CS if jshFlashRead had left it set
+    if (spiFlashLastAddress) {
+      nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+      spiFlashLastAddress = 0;
+    }
     //jsiConsolePrintf("SPI Write %d %d\n",addr, len);
     unsigned char b[5];
 #if defined(BANGLEF5)
@@ -1913,10 +1932,10 @@ void jshFlashWrite(void * buf, uint32_t addr, uint32_t len) {
       b[1] = addr>>16;
       b[2] = addr>>8;
       b[3] = addr;
-      jshPinSetValue(SPIFLASH_PIN_CS,0);
+      nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
       spiFlashWrite(b,4);
       spiFlashWrite(bufPtr,l);
-      jshPinSetValue(SPIFLASH_PIN_CS,1);
+      nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
       // Check busy
       WAIT_UNTIL(!(spiFlashStatus()&1), "jshFlashWrite");
       // go to next chunk
