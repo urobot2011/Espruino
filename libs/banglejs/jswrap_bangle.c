@@ -146,7 +146,11 @@ You can also retrieve the most recent reading with `Bangle.getCompass()`.
   "params" : [["nmea","JsVar",""]],
   "ifdef" : "BANGLEJS"
 }
+<<<<<<< HEAD
 Raw NMEA GPS / u-blox data messages received as a string
+=======
+Raw NMEA GPS data lines received as a string
+>>>>>>> parent of 0574da31... GPS-raw event ArrayBuffer, handle UBX protocol
 
 To get this event you must turn the GPS on
 with `Bangle.setGPSPower(1)`.
@@ -277,6 +281,7 @@ or right hand side.
 #define ACCEL_HISTORY_LEN 50 ///< Number of samples of accelerometer history
 #define HRM_HISTORY_LEN 256
 
+<<<<<<< HEAD
 /// Handling data coming from UBlox GPS
 typedef enum {
   UBLOX_PROTOCOL_NOT_DETECTED = 0,
@@ -296,6 +301,11 @@ uint8_t ubloxMsgLength = 0;
 /// GPS data to be handled in jswrap_banglejs_idle
 char ubloxMsg[NMEA_MAX_SIZE];
 /// GPS fix data converted from GPS
+=======
+uint8_t nmeaCount = 0; // how many characters of NMEA data do we have?
+char nmeaIn[NMEA_MAX_SIZE]; //  82 is the max for NMEA
+char nmeaLine[NMEA_MAX_SIZE]; // A line of received NMEA data
+>>>>>>> parent of 0574da31... GPS-raw event ArrayBuffer, handle UBX protocol
 NMEAFixInfo gpsFix;
 
 
@@ -1202,12 +1212,15 @@ void jswrap_banglejs_setHRMPower(bool isOn) {
 #endif
 }
 
+<<<<<<< HEAD
 void resetUbloxIn() {
   ubloxInLength = 0;
   ubloxMsgPayloadEnd = 0;
   inComingUbloxProtocol = UBLOX_PROTOCOL_NOT_DETECTED;
 }
 
+=======
+>>>>>>> parent of 0574da31... GPS-raw event ArrayBuffer, handle UBX protocol
 /*JSON{
     "type" : "staticmethod",
     "class" : "Bangle",
@@ -1239,7 +1252,7 @@ void jswrap_banglejs_setGPSPower(bool isOn) {
     inf.pinTX = GPS_PIN_TX;
     jshUSARTSetup(GPS_UART, &inf);
     jswrap_banglejs_ioWr(IOEXP_GPS, 1); // GPS on
-    resetUbloxIn();
+    nmeaCount = 0;
     memset(&gpsFix,0,sizeof(gpsFix));
   } else {
     jswrap_banglejs_ioWr(IOEXP_GPS, 0); // GPS off
@@ -1675,7 +1688,11 @@ bool jswrap_banglejs_idle() {
     jsvUnLock(data);
   }
   if (bangle && (bangleTasks & JSBT_GPS_DATA_LINE)) {
+<<<<<<< HEAD
     JsVar *line = jsvObjectGetChild(bangle,"_gpsdata",0);
+=======
+    JsVar *line = jsvNewFromString(nmeaLine);
+>>>>>>> parent of 0574da31... GPS-raw event ArrayBuffer, handle UBX protocol
     if (line) {
       jsvObjectRemoveChild(bangle,"_gpsdata");
       jsvAppendStringBuf(line, ubloxMsg, ubloxMsgLength);
@@ -1870,7 +1887,9 @@ bool jswrap_banglejs_idle() {
   "generate" : "jswrap_banglejs_gps_character"
 }*/
 bool jswrap_banglejs_gps_character(char ch) {
+  if (ch=='\r') return true; // we don't care
   // if too many chars, roll over since it's probably because we skipped a newline
+<<<<<<< HEAD
   // or messed the message length
   if (ubloxInLength >= sizeof(ubloxIn)) {
     if (inComingUbloxProtocol == UBLOX_PROTOCOL_UBX &&
@@ -1946,7 +1965,29 @@ bool jswrap_banglejs_gps_character(char ch) {
       }
       resetUbloxIn();
     }
+=======
+  if (nmeaCount>=sizeof(nmeaIn)) nmeaCount=0;
+  nmeaIn[nmeaCount++]=ch;
+  if (ch!='\n') return true; // now handled
+  // Now we have a line of GPS data...
+/*  $GNRMC,161945.00,A,5139.11397,N,00116.07202,W,1.530,,190919,,,A*7E
+    $GNVTG,,T,,M,1.530,N,2.834,K,A*37
+    $GNGGA,161945.00,5139.11397,N,00116.07202,W,1,06,1.29,71.1,M,47.0,M,,*64
+    $GNGSA,A,3,09,06,23,07,03,29,,,,,,,1.96,1.29,1.48*14
+    $GPGSV,3,1,12,02,45,293,13,03,10,109,16,05,13,291,,06,56,213,25*73
+    $GPGSV,3,2,12,07,39,155,18,09,76,074,33,16,08,059,,19,02,218,18*7E
+    $GPGSV,3,3,12,23,40,066,23,26,08,033,18,29,07,342,20,30,14,180,*7F
+    $GNGLL,5139.11397,N,00116.07202,W,161945.00,A,A*69 */
+  // Let's just chuck it over into JS-land for now
+  if (nmeaCount>1) {
+    memcpy(nmeaLine, nmeaIn, nmeaCount);
+    nmeaLine[nmeaCount-1]=0; // just overwriting \n
+    bangleTasks |= JSBT_GPS_DATA_LINE;
+    if (nmea_decode(&gpsFix, nmeaLine))
+      bangleTasks |= JSBT_GPS_DATA;
+>>>>>>> parent of 0574da31... GPS-raw event ArrayBuffer, handle UBX protocol
   }
+  nmeaCount = 0;
   return true; // handled
 }
 
