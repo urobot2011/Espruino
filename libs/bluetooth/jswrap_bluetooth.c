@@ -2633,6 +2633,7 @@ JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options) {
 #endif
 }
 
+
 /*JSON{
     "type" : "staticmethod",
     "class" : "NRF",
@@ -2646,7 +2647,7 @@ JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options) {
     "return_object" : "Promise"
 }
 */
-
+#ifdef NRF52
 JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac) {
   if (jsble_has_peripheral_connection()) {
     m_central_conn_handle = m_peripheral_conn_handle;
@@ -2666,8 +2667,11 @@ JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac) {
   jsvUnLock(gatt);
   return gatt;
 }
-
-
+#else
+JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac) {
+  return 0;
+}
+#endif
 
 /*JSON{
     "type" : "staticmethod",
