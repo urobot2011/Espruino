@@ -9,11 +9,13 @@
 *.srec
 *.bin
 *.pyc
+/*.bin.unpadded
 /*.zip
 /gen/*
 /.vagrant/*
 /boards/*.html
 /boards/*.json
+/boards/*_CUSTOM.py
 /zipcontents
 /tmp
 /benchmark/*.txt

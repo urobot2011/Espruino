@@ -1404,7 +1404,7 @@ JsVar *jspeTemplateLiteral() {
             JsVar *result = jspEvaluateExpressionVar(expr);
             jsvUnLock(expr);
             result = jsvAsStringAndUnLock(result);
-            jsvStringIteratorAppendString(&dit, result, 0);
+            jsvStringIteratorAppendString(&dit, result, 0, JSVAPPENDSTRINGVAR_MAXLENGTH);
             jsvUnLock(result);
           } else {
             jsvStringIteratorAppend(&dit, '$');
@@ -1444,9 +1444,7 @@ NO_INLINE JsVar *jspeArrowFunction(JsVar *funcVar, JsVar *a) {
 
   bool expressionOnly = lex->tk!='{';
   jspeFunctionDefinitionInternal(funcVar, expressionOnly);
-  if (execInfo.thisVar) {
-    jsvObjectSetChild(funcVar, JSPARSE_FUNCTION_THIS_NAME, execInfo.thisVar);
-  }
+  jsvObjectSetChild(funcVar, JSPARSE_FUNCTION_THIS_NAME, execInfo.thisVar);
   return funcVar;
 }
 
@@ -1878,8 +1876,14 @@ NO_INLINE JsVar *__jspeBinaryExpression(JsVar *a, unsigned int lastPrecedence) {
               char nameBuf[JSLEX_MAX_TOKEN_LENGTH];
               if (jsvGetString(av, nameBuf, sizeof(nameBuf)) < sizeof(nameBuf))
                 varFound = jswBinarySearch(syms, bv, nameBuf);
+              bool found = varFound!=0;
               jsvUnLock2(a, varFound);
-              a = jsvNewFromBool(varFound!=0);
+              if (!found && jsvIsArrayBuffer(bv)) {
+                JsVarFloat f = jsvGetFloat(av); // if not a number this will be NaN, f==floor(f) fails
+                if (f==floor(f) && f>=0 && f<jsvGetArrayBufferLength(bv))
+                  found = true;
+              }
+              a = jsvNewFromBool(found);
             } else { // not built-in, just assume we can't do it
               jsExceptionHere(JSET_ERROR, "Cannot use 'in' operator to search a %t", bv);
               jsvUnLock(a);
@@ -2251,9 +2255,6 @@ NO_INLINE JsVar *jspeStatementSwitch() {
 }
 
 NO_INLINE JsVar *jspeStatementDoOrWhile(bool isWhile) {
-#ifdef JSPARSE_MAX_LOOP_ITERATIONS
-  int loopCount = JSPARSE_MAX_LOOP_ITERATIONS;
-#endif
   JsVar *cond;
   bool loopCond = true; // true for do...while loops
   bool hasHadBreak = false;
@@ -2304,15 +2305,18 @@ NO_INLINE JsVar *jspeStatementDoOrWhile(bool isWhile) {
   JslCharPos whileBodyEnd;
   jslCharPosNew(&whileBodyEnd, lex->sourceVar, lex->tokenStart);
 
+  int loopCount = 0;
   while (!hasHadBreak && loopCond
 #ifdef JSPARSE_MAX_LOOP_ITERATIONS
-      && loopCount-->0
+      && loopCount<JSPARSE_MAX_LOOP_ITERATIONS
 #endif
   ) {
-    jslSeekToP(&whileCondStart);
-    cond = jspeAssignmentExpression();
-    loopCond = JSP_SHOULD_EXECUTE && jsvGetBoolAndUnLock(jsvSkipName(cond));
-    jsvUnLock(cond);
+    if (isWhile || loopCount) { // don't check the start condition a second time if we're in a do..while loop
+      jslSeekToP(&whileCondStart);
+      cond = jspeAssignmentExpression();
+      loopCond = JSP_SHOULD_EXECUTE && jsvGetBoolAndUnLock(jsvSkipName(cond));
+      jsvUnLock(cond);
+    }
     if (loopCond) {
       jslSeekToP(&whileBodyStart);
       execInfo.execute |= EXEC_IN_LOOP;
@@ -2326,13 +2330,14 @@ NO_INLINE JsVar *jspeStatementDoOrWhile(bool isWhile) {
         hasHadBreak = true;
       }
     }
+    loopCount++;
   }
   jslSeekToP(&whileBodyEnd);
   jslCharPosFree(&whileCondStart);
   jslCharPosFree(&whileBodyStart);
   jslCharPosFree(&whileBodyEnd);
 #ifdef JSPARSE_MAX_LOOP_ITERATIONS
-  if (loopCount<=0) {
+  if (loopCount > JSPARSE_MAX_LOOP_ITERATIONS) {
     jsExceptionHere(JSET_ERROR, "WHILE Loop exceeded the maximum number of iterations (" STRINGIFY(JSPARSE_MAX_LOOP_ITERATIONS) ")");
   }
 #endif
