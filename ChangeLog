@@ -24,6 +24,23 @@
             nRF5x: clear FPU interrupt before sleeping
             micro:bit: Add support for LSM303 accelerometer/magnetometer
             micro:bit: Add delays at first boot to wait for USB UART to init and connect vis USB
+            micro:bit: Re-added tab complete (enough space now)
+            micro:bit: Added a fake pin for LED/LED1 that uses the LED matrix
+            nRF52: Allow a cccd_handle of 0 for startNotifications
+            Align Tensorflow arena to 16 bytes - new Tensorflow requires this (fix #1914)
+            Fix ReferenceError when arguments[0] is used when an argument is undefined (fix #1691)
+            JSON conversion for console now removes quotes on key lengths bigger than 15 (63)
+            micro:bit: add Storage.write/etc even on space-constrained (SAVE_ON_FLASH) devices
+            Remove flash compaction code on SAVE_ON_FLASH devices to save some space
+            Fix occasional duplicate state changes when using setWatch with debounce (fix #1902)
+            JSON.stringify now outputs 'null' for non-finite numbers as the spec requires (fix #1919)
+            Update Tensorflow to latest version, fix return 0 issue on ARM release builds (fix #1918)
+            Bangle.js: Accelerometer poll handler now uses RTC app_timer, not TIMER1. 1mA->0.5mA standby current (ref #1920)
+            Bangle.js: SPI MISO is now input_pullup (shaves ~20uA)
+            Espruino WiFi: Fix startAP function when open and no password supplied
+            Bangle.js: Accelerometer now runs in low power mode (saving ~150uA)
+            Bangle.js: Peripheral polling now only fully wakes Bangle when an event requires JS processing (ref #1921)
+            Bangle.js: When not moved for 1 minute, slow down accelerometer poll interval from 80 to 800ms (fix #1921)
 
      2v06 : Allow `"ram"` keyword at the top of a function to allow it to be pretokenised and loaded to RAM
             Don't store line numbers for pretokenised functions
