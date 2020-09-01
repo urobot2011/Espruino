@@ -29,6 +29,7 @@ int _pin_cs;
 int _pin_dc;
 int _colstart;
 int _rowstart;
+int _dev_width;
 IOEventFlags _device;
 
 static void spi_cmd(const uint8_t cmd) 
@@ -105,6 +106,7 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
   _pin_dc = inf.pinDC;
   _colstart = inf.colstart;
   _rowstart = inf.rowstart;
+  _dev_width = inf.width;
   _device = jsiGetDeviceFromClass(device);
 	
   if (!DEVICE_IS_SPI(_device)) { 
@@ -168,13 +170,28 @@ void disp_spi_transfer_color_many(uint16_t color, uint32_t len)
     spi_data((uint8_t *)&buffer_color, idx*2);
 }
 
+static int lastx=-1;
+static int lasty=-1;
+
+void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
+  uint16_t color =   (col>>8) | (col<<8); 
+  jshPinSetValue(_pin_cs, 0);
+  if (x!=lastx+1 || y!=lasty) {
+    disp_spi_transfer_addrwin(x, y, _dev_width, y+1);  
+    lastx = x;
+    lasty = y;
+  } else lastx++; 
+  spi_data((uint8_t *)&color, 2);
+  jshPinSetValue(_pin_cs, 1);
+}
+/*
 void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
   uint16_t color =   (col>>8) | (col<<8); 
   jshPinSetValue(_pin_cs, 0);
   disp_spi_transfer_addrwin(x, y, x+1, y+1);  
   spi_data((uint8_t *)&color, 2);
   jshPinSetValue(_pin_cs, 1);
-}
+}*/
 
 void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsigned int col) {
   int pixels = (1+x2-x1)*(1+y2-y1);	
@@ -182,6 +199,8 @@ void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, uns
   disp_spi_transfer_addrwin(x1, y1, x2, y2);
   disp_spi_transfer_color_many(col, pixels);
   jshPinSetValue(_pin_cs, 1);
+  lastx=-1;
+  lasty=-1;
 }
 
 void lcd_spi_unbuf_setCallbacks(JsGraphics *gfx) {

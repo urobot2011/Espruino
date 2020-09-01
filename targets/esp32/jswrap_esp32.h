@@ -22,7 +22,8 @@
 JsVar *jswrap_ESP32_getState();
 JsVar *jswrap_ESP32_setBoot(JsVar *jsPartitionName);
 void   jswrap_ESP32_reboot();
-void   jswrap_ESP32_deepSleep(int us);
+void   jswrap_ESP32_deepSleep(int us, JsVar *wakepin, JsVar *mode);
+void   jswrap_ESP32_setWakePin(Pin pin);
 void   jswrap_ESP32_setAtten(Pin pin,int atten);
 
 #ifdef BLUETOOTH

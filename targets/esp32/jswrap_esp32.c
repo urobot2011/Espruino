@@ -77,13 +77,25 @@ void jswrap_ESP32_reboot() {
   "ifdef" : "ESP32",
   "name"     : "deepSleep",
   "generate" : "jswrap_ESP32_deepSleep",
-  "params"   : [ ["us", "int", "Sleeptime in us"] ]
+  "params"   : [["us", "int", "Sleeptime in us"],
+                ["wakepin", "JsVar", "optional - Pin to wake from sleep"],
+                ["mode", "JsVar", "optional - 0 wake when pin low, 1 wake when pin high"]
+               ]
 }
 Put device in deepsleep state for "us" microseconds.
+If "us" is 0 deepsleep state is indefinite, specify wakepin to awaken device from this state.
 */
-void jswrap_ESP32_deepSleep(int us) {
-  esp_sleep_enable_timer_wakeup((uint64_t)(us));
-  esp_deep_sleep_start(); // This function does not return.
+
+void jswrap_ESP32_deepSleep(int us, JsVar *wakepin, JsVar *mode) {
+    int md = 0;
+    if (jsvIsNumeric(mode)) {
+      md = jsvGetInteger(mode);
+      md = md > 0?1:0;
+    }
+    Pin wp = jshGetPinFromVar(wakepin);
+    if (jshIsPinValid(wp)) esp_sleep_enable_ext0_wakeup((gpio_num_t)wp, md);
+    if (us > 0) esp_sleep_enable_timer_wakeup((uint64_t)(us));
+    esp_deep_sleep_start(); // This function does not return.
 } // End of jswrap_ESP32_deepSleep
 
 
