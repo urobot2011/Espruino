@@ -53,6 +53,10 @@ static inline void spi_data(const uint8_t *data, int len)
    _chunk_index = 0;
  }
 
+ static inline bool willFlush(){
+   return _chunk_index == BUFFER - 1;
+ }
+
  static inline _put_pixel( uint16_t c) {
    _chunk_buffer[_chunk_index++] = c;
    if (_chunk_index==BUFFER) flush_chunk_buffer();
@@ -183,14 +187,23 @@ static int lasty=-1;
 
 void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
   uint16_t color =   (col>>8) | (col<<8); 
-  jshPinSetValue(_pin_cs, 0);
   if (x!=lastx+1 || y!=lasty) {
+    jshPinSetValue(_pin_cs, 0);
     disp_spi_transfer_addrwin(x, y, gfx->data.width, y+1);  
+    jshPinSetValue(_pin_cs, 1); //will never flush after 
+    _put_pixel(color);
     lastx = x;
     lasty = y;
-  } else lastx++; 
-  _put_pixel(color);
-  jshPinSetValue(_pin_cs, 1);
+  } else {
+    lastx++; 
+    if (willFlush()){
+      jshPinSetValue(_pin_cs, 0);
+      _put_pixel(color);
+      jshPinSetValue(_pin_cs, 1);
+    } else {
+      _put_pixel(color);
+    } 
+  }
 }
 
 void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsigned int col) {
