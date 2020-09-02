@@ -30,7 +30,6 @@ int _pin_cs;
 int _pin_dc;
 int _colstart;
 int _rowstart;
-int _dev_width;
 IOEventFlags _device;
 
 static void spi_cmd(const uint8_t cmd) 
@@ -60,8 +59,10 @@ static inline void spi_data(const uint8_t *data, int len)
  }
 
  /// flush chunk buffer to screen
-void lcd_spi_unbuf_flip(JsVar *parent) {
+void lcd_flip(JsVar *parent) {
+  jshPinSetValue(_pin_cs, 0);
   flush_chunk_buffer();
+  jshPinSetValue(_pin_cs, 1);
 }
 
 void jshLCD_SPI_UNBUFInitInfo(JshLCD_SPI_UNBUFInfo *inf) {
@@ -125,7 +126,6 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
   _pin_dc = inf.pinDC;
   _colstart = inf.colstart;
   _rowstart = inf.rowstart;
-  _dev_width = inf.width;
   _device = jsiGetDeviceFromClass(device);
 	
   if (!DEVICE_IS_SPI(_device)) { 
@@ -150,7 +150,7 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
 
   // Create 'flip' fn
   JsVar *fn;
-  fn = jsvNewNativeFunction((void (*)(void))lcd_spi_unbuf_flip, JSWAT_VOID|JSWAT_THIS_ARG);
+  fn = jsvNewNativeFunction((void (*)(void))lcd_flip, JSWAT_VOID|JSWAT_THIS_ARG);
   jsvObjectSetChildAndUnLock(parent,"flip",fn);
 
   return parent;
@@ -185,7 +185,7 @@ void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
   uint16_t color =   (col>>8) | (col<<8); 
   jshPinSetValue(_pin_cs, 0);
   if (x!=lastx+1 || y!=lasty) {
-    disp_spi_transfer_addrwin(x, y, _dev_width, y+1);  
+    disp_spi_transfer_addrwin(x, y, gfx->data.width, y+1);  
     lastx = x;
     lasty = y;
   } else lastx++; 
