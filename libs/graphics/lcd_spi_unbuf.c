@@ -20,6 +20,7 @@
 #include "lcd_spi_unbuf.h"
 #include "jsutils.h"
 #include "jsinteractive.h"
+#include "jswrapper.h"
 #include "jswrap_graphics.h"
 #include "jshardware.h"
 
@@ -39,10 +40,28 @@ static void spi_cmd(const uint8_t cmd)
   jshPinSetValue(_pin_dc, 1);
 }
 
-static void spi_data(const uint8_t *data, int len) 
+static inline void spi_data(const uint8_t *data, int len) 
 {
-  if (len==0) return;
   jshSPISendMany(_device, data, NULL, len, NULL);
+}
+
+ uint16_t _chunk_buffer[BUFFER];
+ int _chunk_index = 0;
+
+ static void flush_chunk_buffer(){
+   if(_chunk_index == 0) return;
+   spi_data((uint8_t *)&_chunk_buffer, _chunk_index*2);
+   _chunk_index = 0;
+ }
+
+ static inline _put_pixel( uint16_t c) {
+   _chunk_buffer[_chunk_index++] = c;
+   if (_chunk_index==BUFFER) flush_chunk_buffer();
+ }
+
+ /// flush chunk buffer to screen
+void lcd_spi_unbuf_flip(JsVar *parent) {
+  flush_chunk_buffer();
 }
 
 void jshLCD_SPI_UNBUFInitInfo(JshLCD_SPI_UNBUFInfo *inf) {
@@ -128,11 +147,18 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
   
   lcd_spi_unbuf_setCallbacks(&gfx);
   graphicsSetVar(&gfx);	
+
+  // Create 'flip' fn
+  JsVar *fn;
+  fn = jsvNewNativeFunction((void (*)(void))lcd_spi_unbuf_flip, JSWAT_VOID|JSWAT_THIS_ARG);
+  jsvObjectSetChildAndUnLock(parent,"flip",fn);
+
   return parent;
 }
 
 void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
   unsigned char wd[4];
+  flush_chunk_buffer();
   x1 += _colstart;
   y1 += _rowstart;
   x2 += _colstart;
@@ -152,24 +178,6 @@ void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
   spi_cmd(0x2C);
 }
 
-void disp_spi_transfer_color_many(uint16_t color, uint32_t len)
-{
-  uint16_t buffer_color[BUFFER];
-  uint8_t idx = 0;
-  uint32_t count = 0; 
-  while (count < len) {
-    buffer_color[idx] = (color>>8) | (color<<8);    
-    idx++;  
-    count++;  
-    if (idx == BUFFER) {
-      spi_data((uint8_t *)&buffer_color, idx*2);
-      idx = 0;
-    }
-  }
-  if (idx > 0) 
-    spi_data((uint8_t *)&buffer_color, idx*2);
-}
-
 static int lastx=-1;
 static int lasty=-1;
 
@@ -181,23 +189,16 @@ void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
     lastx = x;
     lasty = y;
   } else lastx++; 
-  spi_data((uint8_t *)&color, 2);
+  _put_pixel(color);
   jshPinSetValue(_pin_cs, 1);
 }
-/*
-void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
-  uint16_t color =   (col>>8) | (col<<8); 
-  jshPinSetValue(_pin_cs, 0);
-  disp_spi_transfer_addrwin(x, y, x+1, y+1);  
-  spi_data((uint8_t *)&color, 2);
-  jshPinSetValue(_pin_cs, 1);
-}*/
 
 void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsigned int col) {
   int pixels = (1+x2-x1)*(1+y2-y1);	
+  uint16_t color =   (col>>8) | (col<<8); 
   jshPinSetValue(_pin_cs, 0);
   disp_spi_transfer_addrwin(x1, y1, x2, y2);
-  disp_spi_transfer_color_many(col, pixels);
+  for (int i=0; i<pixels; i++) _put_pixel(color);
   jshPinSetValue(_pin_cs, 1);
   lastx=-1;
   lasty=-1;

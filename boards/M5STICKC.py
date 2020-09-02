@@ -40,7 +40,7 @@ info = {
      'DEFINES+=-DESP_STACK_SIZE=25000',
      'DEFINES+=-DJSVAR_MALLOC', # Allocate space for variables at jsvInit time
      'DEFINES+=-DUSE_FONT_6X8',
-     'DEFINES+=-DSPISENDMANY_BUFFER_SIZE=64',
+     'DEFINES+=-DSPISENDMANY_BUFFER_SIZE=80',
      'ESP32_FLASH_MAX=1572864'
    ]
  }
