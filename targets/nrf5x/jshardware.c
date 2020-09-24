@@ -62,7 +62,7 @@ void app_error_fault_handler(uint32_t id, uint32_t pc, uint32_t info) {
 #include "nrf_timer.h"
 #include "nrf_delay.h"
 #include "nrf_nvic.h"
-#ifdef NRF52
+#ifdef NRF52_SERIES
 #include "nrf_saadc.h"
 #include "nrf_pwm.h"
 #else
@@ -248,10 +248,14 @@ static void usbd_user_ev_handler(app_usbd_event_type_t event)
 BITFIELD_DECL(jshPinSoftPWM, JSH_PIN_COUNT);
 // Whether a pin is negated of not (based on NRF pins)
 BITFIELD_DECL(jshNRFPinNegated, JSH_PIN_COUNT);
+
+#define PWM_COUNTERS 3
 // Current values used in PWM channel counters
-static uint16_t pwmValues[3][4];
+static uint16_t pwmValues[PWM_COUNTERS][4];
 // Current values used in main PWM counters
-static uint16_t pwmCounters[3];
+static uint16_t pwmCounters[PWM_COUNTERS];
+// Current prescalers used in main PWM counters
+static uint8_t pwmClocks[PWM_COUNTERS];
 
 /// For flash - whether it is busy or not...
 volatile bool flashIsBusy = false;
@@ -438,7 +442,7 @@ void SysTick_Handler(void)  {
   }
 }
 
-#ifdef NRF52
+#ifdef NRF52_SERIES
 NRF_PWM_Type *nrf_get_pwm(JshPinFunction func) {
   if ((func&JSH_MASK_TYPE) == JSH_TIMER1) return NRF_PWM0;
   else if ((func&JSH_MASK_TYPE) == JSH_TIMER2) return NRF_PWM1;
@@ -457,7 +461,7 @@ static NO_INLINE void jshPinSetFunction_int(JshPinFunction func, uint32_t pin) {
   JshPinFunction fInfo = func&JSH_MASK_INFO;
   switch (fType) {
   case JSH_NOTHING: break;
-#ifdef NRF52
+#ifdef NRF52_SERIES
   case JSH_TIMER1:
   case JSH_TIMER2:
   case JSH_TIMER3: {
@@ -649,7 +653,7 @@ void jshInit() {
 
   // Enable and sort out the timer
   nrf_timer_mode_set(NRF_TIMER1, NRF_TIMER_MODE_TIMER);
-#ifdef NRF52
+#ifdef NRF52_SERIES
   nrf_timer_bit_width_set(NRF_TIMER1, NRF_TIMER_BIT_WIDTH_32);
   nrf_timer_frequency_set(NRF_TIMER1, NRF_TIMER_FREQ_1MHz);
   #define NRF_TIMER_FREQ 1000000
@@ -710,7 +714,7 @@ void jshInit() {
   // Enable PPI driver
   err_code = nrf_drv_ppi_init();
   APP_ERROR_CHECK(err_code);
-#ifdef NRF52  
+#ifdef NRF52_SERIES
   // Turn on SYSTICK - used for handling Ctrl-C behaviour
   SysTick_Config(0xFFFFFF);
 #endif
@@ -802,6 +806,10 @@ JsSysTime jshGetSystemTime() {
 void jshSetSystemTime(JsSysTime time) {
   // Set baseSystemTime to 0 so 'jshGetSystemTime' isn't affected
   baseSystemTime = 0;
+  // If the RTC has changed (eg softdevice reboot) ensure
+  // we don't end up incrementing baseSystemTime and then
+  // getting an invalid time when we call jshGetSystemTime (fixes #1933)
+  lastSystemTime = 0;
   // now set baseSystemTime based on the value from jshGetSystemTime()
   baseSystemTime = time - jshGetSystemTime();
 }
@@ -817,7 +825,7 @@ JsVarFloat jshGetMillisecondsFromTime(JsSysTime time) {
 }
 
 void jshInterruptOff() {
-#if defined(BLUETOOTH) && defined(NRF52)
+#if defined(BLUETOOTH) && defined(NRF52_SERIES)
   // disable non-softdevice IRQs. This only seems available on Cortex M3 (not the nRF51's M0)
   __set_BASEPRI(4<<5); // Disabling interrupts completely is not reasonable when using one of the SoftDevices.
 #else
@@ -826,7 +834,7 @@ void jshInterruptOff() {
 }
 
 void jshInterruptOn() {
-#if defined(BLUETOOTH) && defined(NRF52)
+#if defined(BLUETOOTH) && defined(NRF52_SERIES)
   __set_BASEPRI(0);
 #else
   __enable_irq();
@@ -1012,7 +1020,7 @@ JshPinState jshPinGetState(Pin pin) {
   }
 }
 
-#ifdef NRF52
+#ifdef NRF52_SERIES
 volatile bool nrf_analog_read_interrupted = false;
 
 nrf_saadc_value_t nrf_analog_read() {
@@ -1076,7 +1084,7 @@ JsVarFloat jshPinAnalog(Pin pin) {
   if (pinInfo[pin].analog == JSH_ANALOG_NONE) return NAN;
   if (!jshGetPinStateIsManual(pin))
     jshPinSetState(pin, JSHPINSTATE_ADC_IN);
-#ifdef NRF52
+#ifdef NRF52_SERIES
   int channel = pinInfo[pin].analog & JSH_MASK_ANALOG_CH;
   assert(NRF_SAADC_INPUT_AIN0 == 1);
   assert(NRF_SAADC_INPUT_AIN1 == 2);
@@ -1127,7 +1135,7 @@ JsVarFloat jshPinAnalog(Pin pin) {
 int jshPinAnalogFast(Pin pin) {
   if (pinInfo[pin].analog == JSH_ANALOG_NONE) return 0;
 
-#ifdef NRF52
+#ifdef NRF52_SERIES
   // sanity checks for channel
   assert(NRF_SAADC_INPUT_AIN0 == 1);
   assert(NRF_SAADC_INPUT_AIN1 == 2);
@@ -1173,15 +1181,13 @@ int jshPinAnalogFast(Pin pin) {
 #endif
 }
 
-JshPinFunction jshGetFreeTimer(JsVarFloat freq) {
+JshPinFunction jshGetFreeTimer(uint8_t clk, uint16_t counter) {
   int timer, channel, pin;
-  for (timer=0;timer<3;timer++) {
+  for (timer=0;timer<PWM_COUNTERS;timer++) {
     bool timerUsed = false;
     JshPinFunction timerFunc = JSH_TIMER1 + (JSH_TIMER2-JSH_TIMER1)*timer;
-    if (freq>0) {
-      // TODO: we could see if the frequency matches?
-      // if frequency specified then if timer is used by
-      // anything else we'll skip it
+    /* If the frequency of this timer doesn't match *and* it is in use, mark as used. */
+    if (pwmCounters[timer]!=counter || pwmClocks[timer]!=clk) {
       for (pin=0;pin<JSH_PIN_COUNT;pin++)
         if ((pinStates[pin]&JSH_MASK_TYPE) == timerFunc)
           timerUsed = true;
@@ -1205,56 +1211,13 @@ JshPinFunction jshGetFreeTimer(JsVarFloat freq) {
 JshPinFunction jshPinAnalogOutput(Pin pin, JsVarFloat value, JsVarFloat freq, JshAnalogOutputFlags flags) {
   if (value>1) value=1;
   if (value<0) value=0;
-#ifdef NRF52
+  bool alreadyConfigured = false;
+#ifdef NRF52_SERIES
   // Try and use existing pin function
   JshPinFunction func = pinStates[pin];
-
-  // If it's not a timer, try and find one
-  if (!JSH_PINFUNCTION_IS_TIMER(func)) {
-#if JSH_PORTV_COUNT>0
-    // don't handle virtual ports (eg. pins on an IO Expander)
-    if ((pinInfo[pin].port & JSH_PORT_MASK)==JSH_PORTV)
-      func = 0;
-    else
-#endif
-    func = jshGetFreeTimer(freq);
-  }
-  /* we set the bit field here so that if the user changes the pin state
-   * later on, we can get rid of the IRQs */
-  if ((flags & JSAOF_FORCE_SOFTWARE) ||
-      ((flags & JSAOF_ALLOW_SOFTWARE) && !func)) {
-#endif
-    if (!jshGetPinStateIsManual(pin)) {
-      BITFIELD_SET(jshPinSoftPWM, pin, 0);
-      jshPinSetState(pin, JSHPINSTATE_GPIO_OUT);
-    }
-    BITFIELD_SET(jshPinSoftPWM, pin, 1);
-    if (freq<=0) freq=50;
-    jstPinPWM(freq, value, pin);
-    return JSH_NOTHING;
-#ifdef NRF52
-  }
-
-  if (!func) {
-    jsExceptionHere(JSET_ERROR, "No free Hardware PWMs. Try not specifying a frequency, or using analogWrite(pin, val, {soft:true}) for Software PWM\n");
-    return 0;
-  }
-
-  /* if negated... No need to invert when doing SW PWM
-  as the SW output is already negating it! */
-  if (pinInfo[pin].port & JSH_PIN_NEGATED)
-    value = 1-value;
-
-  NRF_PWM_Type *pwm = nrf_get_pwm(func);
-  if (!pwm) { assert(0); return 0; };
-  jshPinSetState(pin, JSHPINSTATE_GPIO_OUT);
-  jshPinSetFunction(pin, func);
-  nrf_pwm_enable(pwm);
-
+  // Work out what speed we need this timer to be
+  int counter = (int)(16000000.0 / (freq>0 ? freq : 1000));
   nrf_pwm_clk_t clk;
-  if (freq<=0) freq = 1000;
-  int counter = (int)(16000000.0 / freq);
-
   if (counter<32768) {
     clk = NRF_PWM_CLK_16MHz;
     if (counter<1) counter=1;
@@ -1279,42 +1242,94 @@ JshPinFunction jshPinAnalogOutput(Pin pin, JsVarFloat value, JsVarFloat freq, Js
   } else {
     clk = NRF_PWM_CLK_125kHz;
     counter >>= 7;
-    if (counter>32767) counter = 32767;
-    // Warn that we're out of range?
   }
 
-  nrf_pwm_configure(pwm,
-      clk, NRF_PWM_MODE_UP, counter /* top value - 15 bits, not 16! */);
-  nrf_pwm_decoder_set(pwm,
-      NRF_PWM_LOAD_INDIVIDUAL, // allow all 4 channels to be used
-      NRF_PWM_STEP_TRIGGERED); // Only step on NEXTSTEP task
+  // If we don't have a timer allocated, try and find one
+  if (JSH_PINFUNCTION_IS_TIMER(func)) {
+    alreadyConfigured = true;
+  } else {
+#if JSH_PORTV_COUNT>0
+    // don't handle virtual ports (eg. pins on an IO Expander)
+    if ((pinInfo[pin].port & JSH_PORT_MASK)==JSH_PORTV)
+      func = 0;
+    else
+#endif
+    if (counter<=32767)
+      func = jshGetFreeTimer((uint8_t)clk, counter);
+    /* if counter>32767 then it's because the period
+     * was too long for the hardware timer to manage. So don't even
+     * try to allocate something.
+     */
+  }
+  /* we set the bit field here so that if the user changes the pin state
+   * later on, we can get rid of the IRQs */
+  if ((flags & JSAOF_FORCE_SOFTWARE) ||
+      ((flags & JSAOF_ALLOW_SOFTWARE) && !func)) {
+#endif
+    if (!jshGetPinStateIsManual(pin)) {
+      BITFIELD_SET(jshPinSoftPWM, pin, 0);
+      jshPinSetState(pin, JSHPINSTATE_GPIO_OUT);
+    }
+    BITFIELD_SET(jshPinSoftPWM, pin, 1);
+    if (freq<=0) freq=50;
+    jstPinPWM(freq, value, pin);
+    return JSH_NOTHING;
+#ifdef NRF52_SERIES
+  }
 
-  /*nrf_pwm_shorts_set(pwm, 0);
-  nrf_pwm_int_set(pwm, 0);
-  nrf_pwm_event_clear(pwm, NRF_PWM_EVENT_LOOPSDONE);
-  nrf_pwm_event_clear(pwm, NRF_PWM_EVENT_SEQEND0);
-  nrf_pwm_event_clear(pwm, NRF_PWM_EVENT_SEQEND1);
-  nrf_pwm_event_clear(pwm, NRF_PWM_EVENT_STOPPED);
-  nrf_pwm_event_clear(pwm, NRF_PWM_EVENT_STOPPED);*/
+  if (!func) {
+    jsExceptionHere(JSET_ERROR, "No free Hardware PWMs. Try not specifying a frequency, or using analogWrite(pin, val, {soft:true}) for Software PWM\n");
+    return 0;
+  }
 
+  /* if negated... No need to invert when doing SW PWM
+  as the SW output is already negating it! */
+  if (pinInfo[pin].port & JSH_PIN_NEGATED)
+    value = 1-value;
+
+  NRF_PWM_Type *pwm = nrf_get_pwm(func);
   int timer = ((func&JSH_MASK_TYPE)-JSH_TIMER1) >> JSH_SHIFT_TYPE;
   int channel = (func&JSH_MASK_INFO) >> JSH_SHIFT_INFO;
+  if (!pwm) { assert(0); return 0; };
+
+  if (!alreadyConfigured) {
+    jshPinSetState(pin, JSHPINSTATE_GPIO_OUT);
+    jshPinSetFunction(pin, func);
+    nrf_pwm_enable(pwm);
+  }
+
+  if (alreadyConfigured) {
+    /* If timer is configured but frequency is different,
+    reconfigure it */
+    if (counter != pwmCounters[timer] ||
+        clk != pwmClocks[timer])
+      alreadyConfigured = false;
+  }
+
   pwmCounters[timer] = counter;
+  pwmClocks[timer] = (uint8_t)clk;
   pwmValues[timer][channel] = counter - (uint16_t)(value*counter);
-  nrf_pwm_loop_set(pwm, PWM_LOOP_CNT_Disabled);
-  nrf_pwm_seq_ptr_set(      pwm, 0, &pwmValues[timer][0]);
-  nrf_pwm_seq_cnt_set(      pwm, 0, 4);
-  nrf_pwm_seq_refresh_set(  pwm, 0, 0);
-  nrf_pwm_seq_end_delay_set(pwm, 0, 0);
+
+  if (!alreadyConfigured) {
+    nrf_pwm_configure(pwm,
+        clk, NRF_PWM_MODE_UP, counter /* top value - 15 bits, not 16! */);
+    nrf_pwm_decoder_set(pwm,
+        NRF_PWM_LOAD_INDIVIDUAL, // allow all 4 channels to be used
+        NRF_PWM_STEP_TRIGGERED); // Only step on NEXTSTEP task
+    nrf_pwm_loop_set(pwm, PWM_LOOP_CNT_Disabled);
+    nrf_pwm_seq_ptr_set(      pwm, 0, &pwmValues[timer][0]);
+    nrf_pwm_seq_cnt_set(      pwm, 0, 4);
+    nrf_pwm_seq_refresh_set(  pwm, 0, 0);
+    nrf_pwm_seq_end_delay_set(pwm, 0, 0);
+  }
   nrf_pwm_task_trigger(pwm, NRF_PWM_TASK_SEQSTART0);
-  // nrf_pwm_disable(pwm);
   return func;
 #endif
 } // if freq<=0, the default is used
 
 /// Given a pin function, set that pin to the 16 bit value (used mainly for DACs and PWM)
 void jshSetOutputValue(JshPinFunction func, int value) {
-#ifdef NRF52
+#ifdef NRF52_SERIES
   if (!JSH_PINFUNCTION_IS_TIMER(func))
     return;
 
@@ -2049,7 +2064,7 @@ void jshFlashWrite(void * buf, uint32_t addr, uint32_t len) {
     uint32_t wordOffset = 0;
     while (len>0 && !jspIsInterrupted()) {
       uint32_t l = len;
-#ifdef NRF51
+#ifdef NRF51_SERIES
       if (l>1024) l=1024; // max write size
 #else
       if (l>4096) l=4096; // max write size
@@ -2120,7 +2135,7 @@ bool jshSleep(JsSysTime timeUntilWake) {
   }
   jsiSetSleep(JSI_SLEEP_ASLEEP);
   while (!hadEvent) {
-#ifdef NRF52
+#ifdef NRF52_SERIES
     /*
      * Clear FPU exceptions.
      * Without this step, the FPU interrupt is marked as pending,
@@ -2204,7 +2219,7 @@ JsVarFloat jshReadTemperature() {
 
 // The voltage that a reading of 1 from `analogRead` actually represents
 JsVarFloat jshReadVRef() {
-#ifdef NRF52
+#ifdef NRF52_SERIES
   nrf_saadc_channel_config_t config;
   config.acq_time = NRF_SAADC_ACQTIME_3US;
   config.gain = NRF_SAADC_GAIN1_6; // 1/6 of input volts
