@@ -31,4 +31,5 @@ void  jswrap_ESP32_setBLE_Debug(int level);
 void  jswrap_ESP32_enableBLE(bool enable);
 #endif
 void jswrap_ESP32_enableWifi(bool enable);
+int jswrap_ESP32_testFn(int fn);
 #endif /* TARGETS_ESP32_JSWRAP_ESP32_H_ */

@@ -23,6 +23,7 @@
 #include "esp_system.h"
 #include "esp_sleep.h"
 #include "esp_heap_caps.h"
+#include "esp_wifi.h"
 
 #ifdef BLUETOOTH
 #include "BLE/esp32_bluetooth_utils.h"
@@ -84,6 +85,7 @@ void jswrap_ESP32_reboot() {
 }
 Put device in deepsleep state for "us" microseconds.
 If "us" is 0 deepsleep state is indefinite, specify wakepin to awaken device from this state.
+If "us" is <0 do lightsleep, experimental
 */
 
 void jswrap_ESP32_deepSleep(int us, JsVar *wakepin, JsVar *mode) {
@@ -95,7 +97,9 @@ void jswrap_ESP32_deepSleep(int us, JsVar *wakepin, JsVar *mode) {
     Pin wp = jshGetPinFromVar(wakepin);
     if (jshIsPinValid(wp)) esp_sleep_enable_ext0_wakeup((gpio_num_t)wp, md);
     if (us > 0) esp_sleep_enable_timer_wakeup((uint64_t)(us));
-    esp_deep_sleep_start(); // This function does not return.
+    else if (us==0)
+       esp_deep_sleep_start(); // This function does not return.
+    esp_light_sleep_start();
 } // End of jswrap_ESP32_deepSleep
 
 
@@ -182,4 +186,25 @@ void jswrap_ESP32_enableWifi(bool enable){ //may be later, we will support BLEen
   ESP32_Set_NVS_Status(ESP_NETWORK_WIFI,enable);
   jsfRemoveCodeFromFlash();
   esp_restart();
+}
+
+/*JSON{
+ "type"	: "staticmethod",
+ "class"	: "ESP32",
+ "ifdef" : "ESP32",
+ "name"		: "testFn",
+ "generate"	: "jswrap_ESP32_testFn",
+ "params"	: [
+   ["fn", "int", "number of fn to be tested" ]
+ ],
+ "return" : ["int","The esp32 restuern code"] 
+}
+used for testing 0 = stopwifi, 1= startwifi
+*/
+int jswrap_ESP32_testFn(int fn){ 
+  if (fn==0)
+    return esp_wifi_stop();
+  else if (fn==1)
+    return esp_wifi_start();
+  return -1;  
 }
