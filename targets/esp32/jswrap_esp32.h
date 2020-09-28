@@ -23,7 +23,6 @@ JsVar *jswrap_ESP32_getState();
 JsVar *jswrap_ESP32_setBoot(JsVar *jsPartitionName);
 void   jswrap_ESP32_reboot();
 void   jswrap_ESP32_deepSleep(int us, JsVar *wakepin, JsVar *mode);
-void   jswrap_ESP32_setWakePin(Pin pin);
 void   jswrap_ESP32_setAtten(Pin pin,int atten);
 
 #ifdef BLUETOOTH
@@ -31,5 +30,7 @@ void  jswrap_ESP32_setBLE_Debug(int level);
 void  jswrap_ESP32_enableBLE(bool enable);
 #endif
 void jswrap_ESP32_enableWifi(bool enable);
-int jswrap_ESP32_testFn(int fn);
+int jswrap_ESP32_wifiStart(bool start);
+void jswrap_ESP32_adcPower(bool on);
+void jswrap_ESP32_setCPUfreq(int freqNo);
 #endif /* TARGETS_ESP32_JSWRAP_ESP32_H_ */

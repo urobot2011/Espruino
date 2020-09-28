@@ -24,6 +24,8 @@
 #include "esp_sleep.h"
 #include "esp_heap_caps.h"
 #include "esp_wifi.h"
+#include "driver/adc.h"
+#include "soc/rtc.h"
 
 #ifdef BLUETOOTH
 #include "BLE/esp32_bluetooth_utils.h"
@@ -33,6 +35,7 @@
 #include "jsutils.h"
 #include "jsinteractive.h"
 #include "jsparse.h"
+
 
 /*JSON{
   "type": "class",
@@ -129,6 +132,9 @@ JsVar *jswrap_ESP32_getState() {
   jsvObjectSetChildAndUnLock(esp32State, "BLE",          jsvNewFromBool(ESP32_Get_NVS_Status(ESP_NETWORK_BLE)));
   jsvObjectSetChildAndUnLock(esp32State, "Wifi",         jsvNewFromBool(ESP32_Get_NVS_Status(ESP_NETWORK_WIFI)));  
   jsvObjectSetChildAndUnLock(esp32State, "minHeap",      jsvNewFromInteger(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT)));
+  jsvObjectSetChildAndUnLock(esp32State, "cpuFreq",      jsvNewFromInteger(rtc_clk_cpu_freq_value(rtc_clk_cpu_freq_get())));
+  jsvObjectSetChildAndUnLock(esp32State, "xtalFreq",      jsvNewFromInteger(rtc_clk_xtal_freq_get()));
+  jsvObjectSetChildAndUnLock(esp32State, "apbFreq",      jsvNewFromInteger(rtc_clk_apb_freq_get()));
   return esp32State;
 } // End of jswrap_ESP32_getState
 
@@ -192,19 +198,56 @@ void jswrap_ESP32_enableWifi(bool enable){ //may be later, we will support BLEen
  "type"	: "staticmethod",
  "class"	: "ESP32",
  "ifdef" : "ESP32",
- "name"		: "testFn",
- "generate"	: "jswrap_ESP32_testFn",
+ "name"		: "wifiStart",
+ "generate"	: "jswrap_ESP32_wifiStart",
  "params"	: [
-   ["fn", "int", "number of fn to be tested" ]
+   ["start", "bool", "true = start, false = stop" ]
  ],
- "return" : ["int","The esp32 restuern code"] 
+ "return" : ["int","The esp32 return code"] 
 }
-used for testing 0 = stopwifi, 1= startwifi
+wifi control false = stopwifi, true = startwifi
 */
-int jswrap_ESP32_testFn(int fn){ 
-  if (fn==0)
-    return esp_wifi_stop();
-  else if (fn==1)
+int jswrap_ESP32_wifiStart(bool start){ 
+  if (start)
     return esp_wifi_start();
-  return -1;  
+  else 
+    return esp_wifi_stop();
+}
+
+/*JSON{
+ "type"	: "staticmethod",
+ "class"	: "ESP32",
+ "ifdef" : "ESP32",
+ "name"		: "adcPower",
+ "generate"	: "jswrap_ESP32_adcPower",
+ "params"	: [
+   ["on", "bool", "true = power on , false = power off" ]
+ ]
+}
+used to turn off adc to save power
+*/
+void jswrap_ESP32_adcPower(bool on){ 
+  if (on)
+    return adc_power_on();
+  else 
+    return adc_power_off();
+}
+
+
+/*JSON{
+ "type"	: "staticmethod",
+ "class"	: "ESP32",
+ "ifdef" : "ESP32",
+ "name"		: "setCPUfreq",
+ "generate"	: "jswrap_ESP32_setCPUfreq",
+ "params"	: [
+   ["freqNo", "int", "0 = XTAL freq , 1 = 80M, 2 = 160M, 3 = 240M" ]
+ ]
+}
+used to turn off adc to save power
+*/
+void jswrap_ESP32_setCPUfreq(int freqNo){ 
+  if (freqNo == rtc_clk_cpu_freq_get()) return;
+  if (freqNo<0 || freqNo >3) return;
+  rtc_clk_cpu_freq_set(freqNo);
 }
