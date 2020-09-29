@@ -190,7 +190,7 @@ and on restart creates jsVars depending on available heap (actual additional 390
 */
 void jswrap_ESP32_enableWifi(bool enable){ //may be later, we will support BLEenable(ALL/SERVER/CLIENT)
   ESP32_Set_NVS_Status(ESP_NETWORK_WIFI,enable);
-  jsfRemoveCodeFromFlash();
+  // |();
   esp_restart();
 }
 
