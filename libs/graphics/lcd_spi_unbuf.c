@@ -64,6 +64,7 @@ static inline void spi_data(const uint8_t *data, int len)
 
  /// flush chunk buffer to screen
 void lcd_flip(JsVar *parent) {
+  if(_chunk_index == 0) return;
   jshPinSetValue(_pin_cs, 0);
   flush_chunk_buffer();
   jshPinSetValue(_pin_cs, 1);
@@ -98,6 +99,18 @@ bool jsspiPopulateOptionsInfo( JshLCD_SPI_UNBUFInfo *inf, JsVar *options){
   else { 
     return false;
   }
+}
+
+/*JSON{
+  "type" : "idle",
+  "generate" : "jswrap_lcd_spi_unbuf_idle"
+}*/
+bool jswrap_lcd_spi_unbuf_idle() {
+    if(_chunk_index == 0) return false;
+    jshPinSetValue(_pin_cs, 0);
+    flush_chunk_buffer();
+    jshPinSetValue(_pin_cs, 1);
+    return false;
 }
 
 /*JSON{

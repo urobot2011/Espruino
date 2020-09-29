@@ -28,5 +28,6 @@ typedef struct {
   int rowstart;             //!< Aditional starting address some pixels dont begin at 0
 } JshLCD_SPI_UNBUFInfo;
 
+bool jswrap_lcd_spi_unbuf_idle();
 JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options);
 void lcd_spi_unbuf_setCallbacks(JsGraphics *gfx);
