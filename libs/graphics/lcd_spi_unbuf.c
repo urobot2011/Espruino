@@ -90,15 +90,8 @@ bool jsspiPopulateOptionsInfo( JshLCD_SPI_UNBUFInfo *inf, JsVar *options){
     {"rowstart", JSV_INTEGER , &inf->rowstart},
   };  
   
-  if (jsvReadConfigObject(options, configs, sizeof(configs) / sizeof(jsvConfigObject))) {	
-    if ( inf->pinDC == PIN_UNDEFINED ) {
-      return false;
-    }
-    return true;
-  }  
-  else { 
-    return false;
-  }
+  return jsvReadConfigObject(options, configs, sizeof(configs) / sizeof(jsvConfigObject))
+          && inf->pinDC != PIN_UNDEFINED;
 }
 
 /*JSON{
@@ -106,10 +99,7 @@ bool jsspiPopulateOptionsInfo( JshLCD_SPI_UNBUFInfo *inf, JsVar *options){
   "generate" : "jswrap_lcd_spi_unbuf_idle"
 }*/
 bool jswrap_lcd_spi_unbuf_idle() {
-    if(_chunk_index == 0) return false;
-    jshPinSetValue(_pin_cs, 0);
-    flush_chunk_buffer();
-    jshPinSetValue(_pin_cs, 1);
+    lcd_flip(NULL);
     return false;
 }
 
