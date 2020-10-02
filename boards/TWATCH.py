@@ -33,7 +33,7 @@ info = {
      'NEOPIXEL',
      'LCD_SPI_UNBUF',
      'FLASHFS',
-     'BLUETOOTH'	 
+     'BLUETOOTH'
    ],
    'makefile' : [
      'DEFINES+=-DESP_PLATFORM -DESP32=1',
