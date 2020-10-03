@@ -15,6 +15,7 @@
 
 #include "jswrap_esp32.h"
 #include "jshardwareAnalog.h"
+#include "jshardwareESP32.h"
 #include "jsutils.h"
 #include "jsinteractive.h"
 #include "jsparse.h"
@@ -28,6 +29,7 @@
 #include "soc/rtc.h"
 
 #ifdef BLUETOOTH
+#include "esp_bt.h"
 #include "BLE/esp32_bluetooth_utils.h"
 #endif
 #include "jshardwareESP32.h"
@@ -174,6 +176,27 @@ void jswrap_ESP32_enableBLE(bool enable){ //may be later, we will support BLEena
   jsfRemoveCodeFromFlash();
   esp_restart();
 }
+
+/*JSON{
+ "type"	: "staticmethod",
+ "class"	: "ESP32",
+ "ifdef" : "ESP32",
+ "name"		: "bleStart",
+ "generate"	: "jswrap_ESP32_bleStart",
+ "params"	: [
+   ["start", "bool", "true = start, false = stop" ]
+ ],
+ "return" : ["int","The esp32 return code"] 
+}
+ble control false = esp_bt_controller_disable, true = esp_bt_controller_enable
+*/
+int jswrap_ESP32_bleStart(bool start){ 
+  if (start)
+    return esp_bt_controller_enable(ESP_BT_MODE_BLE);
+  else 
+    return esp_bt_controller_disable();
+}
+
 #endif
 /*JSON{
  "type"	: "staticmethod",

@@ -28,9 +28,10 @@ void   jswrap_ESP32_setAtten(Pin pin,int atten);
 #ifdef BLUETOOTH
 void  jswrap_ESP32_setBLE_Debug(int level);
 void  jswrap_ESP32_enableBLE(bool enable);
+int   jswrap_ESP32_bleStart(bool start);
 #endif
 void jswrap_ESP32_enableWifi(bool enable);
-int jswrap_ESP32_wifiStart(bool start);
+int  jswrap_ESP32_wifiStart(bool start);
 void jswrap_ESP32_adcPower(bool on);
 void jswrap_ESP32_setCPUfreq(int freqNo);
 #endif /* TARGETS_ESP32_JSWRAP_ESP32_H_ */
