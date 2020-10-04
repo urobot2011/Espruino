@@ -186,7 +186,8 @@ void jswrap_ESP32_enableBLE(bool enable){ //may be later, we will support BLEena
  "params"	: [
    ["start", "bool", "true = start, false = stop" ]
  ],
- "return" : ["int","The esp32 return code"] 
+ "return" : ["int","The esp32 return code"],
+ "ifdef"	: "BLUETOOTH"  
 }
 ble control false = esp_bt_controller_disable, true = esp_bt_controller_enable
 */

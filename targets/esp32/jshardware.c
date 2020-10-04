@@ -130,6 +130,7 @@ void jshPinSetStateRange( Pin start, Pin end, JshPinState state ) {
 
 void jshPinDefaultPullup() {
   /*
+  This causes large power drain during sleep so now elided
   // 6-11 are used by Flash chip
   // 32-33 are routed to rtc for xtal
   // 16-17 are used for PSRAM (future use)
