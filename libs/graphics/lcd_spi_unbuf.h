@@ -1,7 +1,7 @@
 /*
  * This file is part of Espruino, a JavaScript interpreter for Microcontrollers
  *
- * Copyright (C) 2020 Gordon Williams <gw@pur3.co.uk>, atc1441, MaBecker  
+ * Copyright (C) 2020 Gordon Williams <gw@pur3.co.uk>, atc1441, MaBecker, Jeffmer
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -16,8 +16,7 @@
 #include "jsvariterator.h"
 #include "jshardware.h"
 
-// #define BUFFER  128
-#define BUFFER SPISENDMANY_BUFFER_SIZE
+#define LCD_SPI_UNBUF_LEN SPISENDMANY_BUFFER_SIZE
 
 typedef struct {
   Pin pinCS;                //!< Pin to use for cs.
