@@ -82,6 +82,9 @@ void app_error_fault_handler(uint32_t id, uint32_t pc, uint32_t info) {
 #if NRF_SD_BLE_API_VERSION<5
 #include "softdevice_handler.h"
 #endif
+#ifdef MICROBIT
+#include "jswrap_microbit.h"
+#endif
 
 void WDT_IRQHandler() {
 }
@@ -641,17 +644,28 @@ void jshInit() {
   jshDelayMicroseconds(10);
 
 #ifdef MICROBIT
+  nrf_gpio_pin_set(MB_LED_ROW1);
+  nrf_gpio_pin_set(MB_LED_COL1);
+  nrf_gpio_pin_set(MB_LED_COL2);
+  nrf_gpio_pin_set(MB_LED_COL3);
+  nrf_gpio_pin_set(MB_LED_COL4);
+  nrf_gpio_pin_set(MB_LED_COL5);
   /* We must wait ~1 second for the USB interface to initialise
    * or it won't raise the RX pin and we won't think anything
    * is connected. */
   bool waitForUART = !jshPinGetValue(DEFAULT_CONSOLE_RX_PIN);
   for (int i=0;i<10 && !jshPinGetValue(DEFAULT_CONSOLE_RX_PIN);i++) {
+    nrf_gpio_pin_write(MB_LED_COL1, i&1);
     nrf_delay_ms(100);
     ticksSinceStart = 0;
   }
 #endif
 
+#ifdef MICROBIT2
+  if (true) {
+#else
   if (jshPinGetValue(DEFAULT_CONSOLE_RX_PIN)) {
+#endif
     JshUSARTInfo inf;
     jshUSARTInitInfo(&inf);
     inf.pinRX = DEFAULT_CONSOLE_RX_PIN;
@@ -665,6 +679,7 @@ void jshInit() {
      * the UART wasn't powered when we connected. */
     if (waitForUART) {
       for (int i=0;i<30;i++) {
+        nrf_gpio_pin_write(MB_LED_COL2, i&1);
         nrf_delay_ms(100);
         ticksSinceStart = 0;
       }
@@ -1704,7 +1719,7 @@ int jshSPISend(IOEventFlags device, int data) {
 #if SPI_ENABLED
   if (device!=EV_SPI1 || !jshIsDeviceInitialised(device)) return -1;
   jshSPIWait(device);
-#if defined(SPI0_USE_EASY_DMA)
+#if defined(SPI0_USE_EASY_DMA)  && (SPI0_USE_EASY_DMA==1)
   // Hack for https://infocenter.nordicsemi.com/topic/­errata_nRF52832_Rev2/ERR/nRF52832/Rev2/l­atest/anomaly_832_58.html?cp=4_2_1_0_1_8
   // Can't use DMA for single bytes as it's broken
 #if NRF_SD_BLE_API_VERSION>5
@@ -2081,7 +2096,16 @@ void jshFlashRead(void * buf, uint32_t addr, uint32_t len) {
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
     //jsiConsolePrintf("SPI Read %d %d\n",addr,len);
-    if (spiFlashLastAddress==0 || spiFlashLastAddress!=addr) {
+    if (
+        spiFlashLastAddress!=addr
+#ifdef SPIFLASH_SHARED_SPI
+        /* with shared SPI someone might interrupt us and pull our CS pin high (also jshFlashWrite/Erase does this too) */
+        || (nrf_gpio_pin_out_read((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin))
+#else
+        /* our internal state that no read is pending = CS is high */
+        || spiFlashLastAddress==0 
+#endif
+       ) {
       nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
       unsigned char b[4];
       // Read
