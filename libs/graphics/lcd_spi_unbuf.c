@@ -43,24 +43,10 @@ static void spi_cmd(const uint8_t cmd)
   jshPinSetValue(_pin_dc, 1);
 }
 
-static inline void spi_data(const uint8_t *data, int len) 
-{
-  jshSPISendMany(_device, data, NULL, len, NULL);
-}
-
 static void flush_chunk_buffer(){
   if(_chunk_index == 0) return;
-  spi_data((uint8_t *)&_chunk_buffer, _chunk_index*2);
+  jshSPISendMany(_device,(uint8_t *)&_chunk_buffer[0],NULL, _chunk_index*2,NULL);
   _chunk_index = 0;
-}
-
-static inline bool willFlush(){
-  return _chunk_index == LCD_SPI_UNBUF_LEN - 1;
-}
-
-static inline _put_pixel( uint16_t c) {
-  _chunk_buffer[_chunk_index++] = c;
-  if (_chunk_index==LCD_SPI_UNBUF_LEN) flush_chunk_buffer();
 }
 
  /// flush chunk buffer to screen
@@ -176,13 +162,13 @@ void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
   wd[1] = x1 & 0xFF;
   wd[2] = x2>>8;
   wd[3] = x2 & 0xFF;
-  spi_data((uint8_t *)&wd, 4);
+  jshSPISendMany(_device, (uint8_t *)&wd, NULL, 4, NULL);
   spi_cmd(0x2B);
   wd[0] = y1>>8;
   wd[1] = y1 & 0xFF;
   wd[2] = y2>>8;
   wd[3] = y2 & 0xFF;
-  spi_data((uint8_t *)&wd, 4);
+  jshSPISendMany(_device, (uint8_t *)&wd, NULL, 4, NULL);
   spi_cmd(0x2C);
 }
 
@@ -192,17 +178,18 @@ void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
     jshPinSetValue(_pin_cs, 0);
     disp_spi_transfer_addrwin(x, y, gfx->data.width, y+1);  
     jshPinSetValue(_pin_cs, 1); //will never flush after 
-    _put_pixel(color);
+    _chunk_buffer[_chunk_index++] = color;
     _lastx = x;
     _lasty = y;
   } else {
     _lastx++; 
-    if (willFlush()){
+    if ( _chunk_index == LCD_SPI_UNBUF_LEN - 1){
       jshPinSetValue(_pin_cs, 0);
-      _put_pixel(color);
+      _chunk_buffer[_chunk_index++] = color;
+      flush_chunk_buffer();
       jshPinSetValue(_pin_cs, 1);
     } else {
-      _put_pixel(color);
+        _chunk_buffer[_chunk_index++] = color;
     } 
   }
 }
@@ -211,8 +198,14 @@ void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, uns
   int pixels = (1+x2-x1)*(1+y2-y1); 
   uint16_t color =   (col>>8) | (col<<8); 
   jshPinSetValue(_pin_cs, 0);
-  disp_spi_transfer_addrwin(x1, y1, x2, y2);
-  for (int i=0; i<pixels; i++) _put_pixel(color);
+  disp_spi_transfer_addrwin(x1, y1, x2, y2); //always flushes buffer
+  int fill = pixels>LCD_SPI_UNBUF_LEN ? LCD_SPI_UNBUF_LEN : pixels;
+  for (int i=0; i<fill; i++) _chunk_buffer[i] = color; //fill buffer
+  while (pixels>=fill) {
+       _chunk_index=fill;
+       if (_chunk_index==LCD_SPI_UNBUF_LEN) flush_chunk_buffer();
+       pixels-=fill;
+  }
   jshPinSetValue(_pin_cs, 1);
   _lastx=-1;
   _lasty=-1;
