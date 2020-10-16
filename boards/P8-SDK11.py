@@ -26,7 +26,7 @@ info = {
 # 'default_console_tx' : "D6",
 # 'default_console_rx' : "D8",
 # 'default_console_baudrate' : "38400",
- 'variables' : 2600, # SD5.0 0x200014B8 SD 3.0 0x200019C0  How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
+ 'variables' : 2500, # SD5.0 0x200014B8 SD 3.0 0x200019C0  How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
  'binary_name' : 'espruino_%v_p8_SDK11_SD20.hex',
  'build' : {
@@ -41,13 +41,14 @@ info = {
    'makefile' : [
 #    'SAVE_ON_FLASH=1',
 #     'DEFINES+=-DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
-     'DEFINES+= -DUSE_FONT_6X8 -DBLE_HIDS_ENABLED=1 -DBLUETOOTH_NAME_PREFIX=\'"P8"\'',
+     'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES -DGRAPHICS_ANTIALIAS',
+     'DEFINES+=-DBLE_HIDS_ENABLED=1 -DBLUETOOTH_NAME_PREFIX=\'"P8"\'',
 #     'DEFINES += -DUSE_DEBUGGER -DUSE_TAB_COMPLETE',
 #     'DEFINES += -DRNG_CONFIG_POOL_SIZE=64',
 #     'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'DFU_SETTINGS=--sd-req 0x81,0x88',
      'USE_LCD_SPI_UNBUF=1',
-     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=240',
+     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=240 -DSPI0_USE_EASY_DMA=1',
 # -DUSE_HEATSHRINK',
 #     'DEFINES += -DUART1_ENABLED=0',
 #     'NRF_SDK14=1',
@@ -71,9 +72,9 @@ chip = {
   'dac' : 0,
   'saved_code' : {
     'page_size' : 4096,
-    'address' : ((118 - 30) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
-    'pages' : 30,
-    'flash_available' : 512 - ((28 + 8 + 2 + 30)*4) # Softdevice 2.0 uses 28 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+    'address' : ((118 - 29) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
+    'pages' : 29,
+    'flash_available' : 512 - ((28 + 8 + 2 + 29)*4) # Softdevice 2.0 uses 28 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
 #    'address' : 0x60380000, # Bootloader takes pages 120-127, FS takes 118-119
 #    'pages' : 32,
 #    'flash_available' : 512 - ((31 + 8 + 2 + 10)*4) # Softdevice 3.0 uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.

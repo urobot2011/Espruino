@@ -206,6 +206,7 @@ void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, uns
        if (_chunk_index==LCD_SPI_UNBUF_LEN) flush_chunk_buffer();
        pixels-=fill;
   }
+  if (pixels>0) _chunk_index=pixels;
   jshPinSetValue(_pin_cs, 1);
   _lastx=-1;
   _lasty=-1;
