@@ -32,9 +32,23 @@ static int _colstart;
 static int _rowstart;
 static int _lastx=-1;
 static int _lasty=-1;
-static uint16_t _chunk_buffer[LCD_SPI_UNBUF_LEN];
+static uint16_t _chunk_buffers[2][LCD_SPI_UNBUF_LEN];
+volatile uint16_t *_chunk_buffer = &_chunk_buffers[0][0];
+volatile int _current_buf = 0;
 static int _chunk_index = 0;
 IOEventFlags _device;
+
+volatile int _cs_count=0; // to manage selected pin
+
+static void set_cs(){
+  if (!_cs_count) jshPinSetValue(_pin_cs, 0);
+  ++_cs_count;
+}
+
+static void rel_cs(){
+  --_cs_count;
+  if (!_cs_count) jshPinSetValue(_pin_cs, 1);
+}
 
 static void spi_cmd(const uint8_t cmd) 
 {
@@ -42,19 +56,25 @@ static void spi_cmd(const uint8_t cmd)
   jshSPISend(_device, cmd);
   jshPinSetValue(_pin_dc, 1);
 }
+static void endxfer(){
+  rel_cs();
+}
 
 static void flush_chunk_buffer(){
   if(_chunk_index == 0) return;
-  jshSPISendMany(_device,(uint8_t *)&_chunk_buffer[0],NULL, _chunk_index*2,NULL);
+  set_cs();
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2,&endxfer);
   _chunk_index = 0;
+  _current_buf = _current_buf?0:1;
+  _chunk_buffer = &_chunk_buffers[_current_buf][0];
 }
 
  /// flush chunk buffer to screen
 void lcd_flip(JsVar *parent) {
   if(_chunk_index == 0) return;
-  jshPinSetValue(_pin_cs, 0);
+  set_cs();
   flush_chunk_buffer();
-  jshPinSetValue(_pin_cs, 1);
+  rel_cs();
 }
 
 void jshLCD_SPI_UNBUFInitInfo(JshLCD_SPI_UNBUFInfo *inf) {
@@ -153,6 +173,7 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
 void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
   unsigned char wd[4];
   flush_chunk_buffer();
+  jshSPIWait(_device); //wait for any async transfer to finish
   x1 += _colstart;
   y1 += _rowstart;
   x2 += _colstart;
@@ -175,39 +196,41 @@ void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
 void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
   uint16_t color =   (col>>8) | (col<<8); 
   if (x!=_lastx+1 || y!=_lasty) {
-    jshPinSetValue(_pin_cs, 0);
+    set_cs();
     disp_spi_transfer_addrwin(x, y, gfx->data.width, y+1);  
-    jshPinSetValue(_pin_cs, 1); //will never flush after 
+    rel_cs(); //will never flush after 
     _chunk_buffer[_chunk_index++] = color;
     _lastx = x;
     _lasty = y;
   } else {
     _lastx++; 
     if ( _chunk_index == LCD_SPI_UNBUF_LEN - 1){
-      jshPinSetValue(_pin_cs, 0);
       _chunk_buffer[_chunk_index++] = color;
       flush_chunk_buffer();
-      jshPinSetValue(_pin_cs, 1);
     } else {
         _chunk_buffer[_chunk_index++] = color;
     } 
   }
 }
 
+/*
+* Optimised so that we only fill buffer with pixel color once 
+* Leaves _chunk_index at 0 and all pixels transferred
+* does nout use double buffering as not helpful here.
+*/
 void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsigned int col) {
   int pixels = (1+x2-x1)*(1+y2-y1); 
   uint16_t color =   (col>>8) | (col<<8); 
-  jshPinSetValue(_pin_cs, 0);
-  disp_spi_transfer_addrwin(x1, y1, x2, y2); //always flushes buffer
+  set_cs();
+  disp_spi_transfer_addrwin(x1, y1, x2, y2); //always flushes buffer 
   int fill = pixels>LCD_SPI_UNBUF_LEN ? LCD_SPI_UNBUF_LEN : pixels;
-  for (int i=0; i<fill; i++) _chunk_buffer[i] = color; //fill buffer
+  for (int i=0; i<fill; i++) _chunk_buffer[i] = color; //fill buffer with color for reuse
   while (pixels>=fill) {
-       _chunk_index=fill;
-       if (_chunk_index==LCD_SPI_UNBUF_LEN) flush_chunk_buffer();
+       jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, fill*2,NULL);
        pixels-=fill;
   }
-  if (pixels>0) _chunk_index=pixels;
-  jshPinSetValue(_pin_cs, 1);
+  if (pixels>0) jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, pixels*2,NULL);
+  rel_cs();
   _lastx=-1;
   _lasty=-1;
 }
