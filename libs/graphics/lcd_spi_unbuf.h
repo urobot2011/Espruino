@@ -30,3 +30,4 @@ typedef struct {
 bool jswrap_lcd_spi_unbuf_idle();
 JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options);
 void lcd_spi_unbuf_setCallbacks(JsGraphics *gfx);
+void jswrap_lcd_spi_unbuf_command(int cmd, JsVar *data);

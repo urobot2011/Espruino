@@ -50,12 +50,13 @@ static void rel_cs(){
   if (!_cs_count) jshPinSetValue(_pin_cs, 1);
 }
 
-static void spi_cmd(const uint8_t cmd) 
-{
+static void spi_cmd(const uint8_t cmd, uint8_t *data, int dsize){
   jshPinSetValue(_pin_dc, 0);
-  jshSPISend(_device, cmd);
+  jshSPISendMany(_device, &cmd, NULL, 1, NULL);
   jshPinSetValue(_pin_dc, 1);
+  if (data) jshSPISendMany(_device, data, NULL, dsize, NULL);
 }
+
 static void endxfer(){
   rel_cs();
 }
@@ -178,19 +179,17 @@ void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
   y1 += _rowstart;
   x2 += _colstart;
   y2 += _rowstart;
-  spi_cmd(0x2A);
   wd[0] = x1>>8;
   wd[1] = x1 & 0xFF;
   wd[2] = x2>>8;
   wd[3] = x2 & 0xFF;
-  jshSPISendMany(_device, (uint8_t *)&wd, NULL, 4, NULL);
-  spi_cmd(0x2B);
+  spi_cmd(0x2A, &wd, 4);
   wd[0] = y1>>8;
   wd[1] = y1 & 0xFF;
   wd[2] = y2>>8;
   wd[3] = y2 & 0xFF;
-  jshSPISendMany(_device, (uint8_t *)&wd, NULL, 4, NULL);
-  spi_cmd(0x2C);
+  spi_cmd(0x2B, &wd, 4);
+  spi_cmd(0x2C, NULL, NULL);
 }
 
 void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
@@ -239,3 +238,43 @@ void lcd_spi_unbuf_setCallbacks(JsGraphics *gfx) {
   gfx->setPixel = lcd_spi_unbuf_setPixel;
   gfx->fillRect = lcd_spi_unbuf_fillRect;
 }
+
+
+/*JSON{
+  "type" : "staticmethod",
+  "class" : "lcd_spi_unbuf",
+  "name" : "command",
+  "generate" : "jswrap_lcd_spi_unbuf_command",
+  "params" : [
+     ["cmd","int32","The 8 bit command"],
+    ["data","JsVar","The data to send with the command either an integer, array, or string"]
+  ]
+}
+Used to send initialisation commands to LCD driver - has to be in native C to allow sharing SPI pins with SPI flash
+Must not be called before connect sets up device.
+ */
+void jswrap_lcd_spi_unbuf_command(int cmd, JsVar *data) {
+   unsigned char cc = (unsigned char)cmd;
+   unsigned char bb[64]; // allow for up to 64 data bytes;
+   int len = 0;
+   set_cs(); 
+  if (!data) {
+    spi_cmd(cc,NULL,NULL);
+  } else if (jsvIsNumeric(data)) {
+    bb[0] = (unsigned char)jsvGetInteger(data);len =1;
+    spi_cmd(cc,&bb,1);
+  } else if (jsvIsIterable(data)) {
+    JsvIterator it;
+    jsvIteratorNew(&it, data, JSIF_EVERY_ARRAY_ELEMENT);
+    while (jsvIteratorHasElement(&it) && len<64) {
+      bb[len] = (unsigned char)jsvIteratorGetIntegerValue(&it); ++len;
+      jsvIteratorNext(&it);
+    }
+    jsvIteratorFree(&it);
+    spi_cmd(cc,&bb,len);
+  } else {
+    jsExceptionHere(JSET_ERROR, "data Variable type %t not suited to command operation", data);
+  }
+  rel_cs();
+}
+
