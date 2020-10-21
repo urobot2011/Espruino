@@ -1698,7 +1698,9 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
 #endif
   if (err_code != NRF_SUCCESS)
     jsExceptionHere(JSET_INTERNALERROR, "SPI Initialisation Error %d\n", err_code);
-
+#ifdef SPIFLASH_SHARED_SPI
+  jshSPIEnable(device,false);
+#else
   // nrf_drv_spi_init will set pins, but this ensures we know so can reset state later
   if (jshIsPinValid(inf->pinSCK)) {
     jshPinSetFunction(inf->pinSCK, JSH_SPI1|JSH_SPI_SCK);
@@ -1709,6 +1711,7 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
   if (jshIsPinValid(inf->pinMISO)) {
     jshPinSetFunction(inf->pinMISO, JSH_SPI1|JSH_SPI_MISO);
   }
+#endif
 #endif
 }
 
