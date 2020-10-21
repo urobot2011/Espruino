@@ -32,9 +32,16 @@ static int _colstart;
 static int _rowstart;
 static int _lastx=-1;
 static int _lasty=-1;
+
+#ifdef LCD_SPI_DOUBLEBUFF
 static uint16_t _chunk_buffers[2][LCD_SPI_UNBUF_LEN];
 volatile uint16_t *_chunk_buffer = &_chunk_buffers[0][0];
 volatile int _current_buf = 0;
+#else
+static uint16_t _chunk_buffers[LCD_SPI_UNBUF_LEN];
+volatile uint16_t *_chunk_buffer = &_chunk_buffers[0];
+#endif
+
 static int _chunk_index = 0;
 IOEventFlags _device;
 
@@ -67,6 +74,7 @@ static void spi_cmd(const uint8_t cmd, uint8_t *data, int dsize){
   if (data) jshSPISendMany(_device, data, NULL, dsize, NULL);
 }
 
+#ifdef LCD_SPI_DOUBLEBUFF
 static void endxfer(){
   rel_cs();
 }
@@ -74,12 +82,20 @@ static void endxfer(){
 static void flush_chunk_buffer(){
   if(_chunk_index == 0) return;
   set_cs();
-  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2,NULL); //&endxfer);
-  rel_cs();
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2, &endxfer);
   _chunk_index = 0;
   _current_buf = _current_buf?0:1;
   _chunk_buffer = &_chunk_buffers[_current_buf][0];
 }
+#else
+static void flush_chunk_buffer(){
+  if(_chunk_index == 0) return;
+  set_cs();
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2, NULL);
+  rel_cs();
+  _chunk_index = 0;
+}
+#endif
 
  /// flush chunk buffer to screen
 void lcd_flip(JsVar *parent) {
