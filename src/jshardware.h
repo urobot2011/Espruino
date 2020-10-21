@@ -318,6 +318,8 @@ void jshSPISet16(IOEventFlags device, bool is16);
 void jshSPISetReceive(IOEventFlags device, bool isReceive);
 /** Wait until SPI send is finished, and flush all received data */
 void jshSPIWait(IOEventFlags device);
+/** enable/disable SPI - needed for shared SPI pins between flash and device */
+void jshSPIEnable(IOEventFlags device, bool enable);
 
 /// Settings passed to jshI2CSetup to set I2C up
 typedef struct {

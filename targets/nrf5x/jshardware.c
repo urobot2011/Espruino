@@ -1760,6 +1760,38 @@ int jshSPISend(IOEventFlags device, int data) {
 
 }
 
+/* Enable and Disable SPI deveice */
+void jshSPIEnable(IOEventFlags device, bool enable) {
+#if defined(SPI0_USE_EASY_DMA)  && (SPI0_USE_EASY_DMA==1)
+#if NRF_SD_BLE_API_VERSION>5
+    NRF_SPIM_Type *p_spim = (NRF_SPIM_Type *)spi0.u.spim.p_reg;
+#else
+    NRF_SPIM_Type *p_spim = (NRF_SPIM_Type *)spi0.p_registers;
+#endif
+    if (enable) {
+#ifdef SPIFLASH_SHARED_SPI
+     spiFlashLastAddress=0; //stop/restart flash transfer
+#endif
+      nrf_spim_enable(p_spim);
+    }
+    else nrf_spim_disable(p_spim);
+#else
+#if NRF_SD_BLE_API_VERSION>5
+    NRF_SPI_Type *p_spi = (NRF_SPI_Type *)spi0.u.spi.p_reg;
+#else
+    NRF_SPI_Type *p_spi = (NRF_SPI_Type *)spi0.p_registers;
+#endif
+   if (enable) {
+#ifdef SPIFLASH_SHARED_SPI
+     spiFlashLastAddress=0; //stop/restart flash transfer
+#endif
+     nrf_spi_enable(p_spi);
+   }
+   else nrf_spi_disable(p_spi);
+#endif
+}
+
+
 /** Send 16 bit data through the given SPI device. */
 void jshSPISend16(IOEventFlags device, int data) {
 #if SPI_ENABLED
@@ -1784,7 +1816,7 @@ bool jshSPISendMany(IOEventFlags device, unsigned char *tx, unsigned char *rx, s
   if (device!=EV_SPI1 || !jshIsDeviceInitialised(device)) return false;
 #if defined(SPI0_USE_EASY_DMA)
   // Hack for https://infocenter.nordicsemi.com/topic/­errata_nRF52832_Rev2/ERR/nRF52832/Rev2/l­atest/anomaly_832_58.html?cp=4_2_1_0_1_8­
-  if (count==1) {
+  if (count==1 && rx) {
     int r = jshSPISend(device, tx?*tx:-1);
     if (rx) *rx = r;
     if (callback) callback();
