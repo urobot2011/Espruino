@@ -74,7 +74,8 @@ static void endxfer(){
 static void flush_chunk_buffer(){
   if(_chunk_index == 0) return;
   set_cs();
-  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2,&endxfer);
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2,NULL); //&endxfer);
+  rel_cs();
   _chunk_index = 0;
   _current_buf = _current_buf?0:1;
   _chunk_buffer = &_chunk_buffers[_current_buf][0];
