@@ -1687,9 +1687,6 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
     spi_config.miso_pin = (uint32_t)pinInfo[inf->pinMISO].pin;
   if (jshIsPinValid(inf->pinMOSI))
     spi_config.mosi_pin = (uint32_t)pinInfo[inf->pinMOSI].pin;
-#ifdef SPIFLASH_SHARED_SPI
-  spiFlashLastAddress=0;   //restart if we are grapping pins in the init/uininit
-#endif
   if (spi0Initialised) nrf_drv_spi_uninit(&spi0);
   spi0Initialised = true;
   // No event handler means SPI transfers are blocking
@@ -1774,9 +1771,6 @@ void jshSPIEnable(IOEventFlags device, bool enable) {
     NRF_SPIM_Type *p_spim = (NRF_SPIM_Type *)spi0.p_registers;
 #endif
     if (enable) {
-#ifdef SPIFLASH_SHARED_SPI
-     spiFlashLastAddress=0; //stop/restart flash transfer
-#endif
       nrf_spim_enable(p_spim);
     }
     else nrf_spim_disable(p_spim);
@@ -1787,9 +1781,6 @@ void jshSPIEnable(IOEventFlags device, bool enable) {
     NRF_SPI_Type *p_spi = (NRF_SPI_Type *)spi0.p_registers;
 #endif
    if (enable) {
-#ifdef SPIFLASH_SHARED_SPI
-     spiFlashLastAddress=0; //stop/restart flash transfer
-#endif
      nrf_spi_enable(p_spi);
    }
    else nrf_spi_disable(p_spi);
@@ -2135,8 +2126,13 @@ void jshFlashRead(void * buf, uint32_t addr, uint32_t len) {
     //jsiConsolePrintf("SPI Read %d %d\n",addr,len);
     if (
         spiFlashLastAddress!=addr
+#ifdef SPIFLASH_SHARED_SPI
+        /* with shared SPI someone might interrupt us and pull our CS pin high (also jshFlashWrite/Erase does this too) */
+        || (nrf_gpio_pin_out_read((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin))
+#else
         /* our internal state that no read is pending = CS is high */
         || spiFlashLastAddress==0 
+#endif
        ) {
       nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
       unsigned char b[4];

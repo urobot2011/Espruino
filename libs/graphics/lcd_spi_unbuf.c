@@ -28,6 +28,7 @@ static int _pin_mosi;
 static int _pin_clk;
 static int _pin_cs;
 static int _pin_dc;
+static int _pin_flash_cs;
 static int _colstart;
 static int _rowstart;
 static int _lastx=-1;
@@ -50,6 +51,7 @@ volatile int _cs_count=0; // to manage selected pin
 static void set_cs(){
   if (!_cs_count) {
 #ifdef SPIFLASH_SHARED_SPI
+    jshPinSetValue(_pin_flash_cs, 1);
     jshSPIEnable(_device,true);
 #endif
     jshPinSetValue(_pin_cs, 0);
@@ -108,6 +110,7 @@ void lcd_flip(JsVar *parent) {
 void jshLCD_SPI_UNBUFInitInfo(JshLCD_SPI_UNBUFInfo *inf) {
   inf->pinCS         = PIN_UNDEFINED;
   inf->pinDC         = PIN_UNDEFINED;
+  inf->pinflashCS    = 5;
   inf->width         = 240;
   inf->height        = 320;
   inf->colstart        = 0;
@@ -119,6 +122,7 @@ bool jsspiPopulateOptionsInfo( JshLCD_SPI_UNBUFInfo *inf, JsVar *options){
   jsvConfigObject configs[] = {
     {"cs", JSV_PIN, &inf->pinCS},
     {"dc", JSV_PIN, &inf->pinDC},
+    {"flashcs", JSV_PIN, &inf->pinflashCS},
     {"width", JSV_INTEGER , &inf->width},
     {"height", JSV_INTEGER , &inf->height},
     {"colstart", JSV_INTEGER , &inf->colstart},
@@ -166,6 +170,7 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
   }
   _pin_cs = inf.pinCS;
   _pin_dc = inf.pinDC;
+  _pin_flash_cs = inf.pinflashCS;
   _colstart = inf.colstart;
   _rowstart = inf.rowstart;
   _device = jsiGetDeviceFromClass(device);
