@@ -78,8 +78,8 @@ chip = {
 #    'pages' : 30,
 #    'flash_available' : 512 - ((28 + 8 + 2 + 30)*4) # Softdevice 2.0 uses 28 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
 # storage in SPI flash
-    'address' : 0x60320000,
-    'pages' : 96, #  0x60320000-0x60380000 - looks like unused space - all FFs
+    'address' : 0x60000000,
+    'pages' : 1024, #  use all of the flash
     'flash_available' : 512 - ((28 + 8 + 2 + 0)*4) # Softdevice 5.0  uses 35 pages of flash, bootloader 8, FS 2, no code. Each page is 4 kb.
   },
 };
