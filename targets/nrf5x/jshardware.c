@@ -1868,7 +1868,7 @@ void jshSPISetReceive(IOEventFlags device, bool isReceive) {
 /** Wait until SPI send is finished, and flush all received data */
 void jshSPIWait(IOEventFlags device) {
 #if SPI_ENABLED
-  WAIT_UNTIL(!spi0Sending, "SPI0");
+  WAIT_UNTIL(!spi0Sending, "SPI0-lock");
 #endif
 }
 #ifdef I2C_SLAVE

@@ -49,6 +49,7 @@ IOEventFlags _device;
 volatile int _cs_count=0; // to manage selected pin
 
 static void set_cs(){
+  jshInterruptOff();
   if (!_cs_count) {
 #ifdef SPIFLASH_SHARED_SPI
     jshPinSetValue(_pin_flash_cs, 1);
@@ -57,9 +58,11 @@ static void set_cs(){
     jshPinSetValue(_pin_cs, 0);
   }
   ++_cs_count;
+  jshInterruptOn();
 }
 
 static void rel_cs(){
+  jshInterruptOff();
   --_cs_count;
   if (!_cs_count) {
     jshPinSetValue(_pin_cs, 1);
@@ -67,6 +70,7 @@ static void rel_cs(){
     jshSPIEnable(_device,false);
 #endif
   }
+  jshInterruptOn();
 }
 
 static void spi_cmd(const uint8_t cmd, uint8_t *data, int dsize){
