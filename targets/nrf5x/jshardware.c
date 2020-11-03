@@ -282,6 +282,11 @@ unsigned char *spi0RxPtr;
 unsigned char *spi0TxPtr;
 size_t spi0Cnt;
 
+#ifdef LCD_SPI_DOUBLEBUFF
+//lock for sharing spi if async double buffering
+volatile  spi0isFree = true;
+#endif
+
 // Handler for async SPI transfers
 volatile bool spi0Sending = false;
 void (*volatile spi0Callback)() = NULL;
@@ -1771,9 +1776,17 @@ void jshSPIEnable(IOEventFlags device, bool enable) {
     NRF_SPIM_Type *p_spim = (NRF_SPIM_Type *)spi0.p_registers;
 #endif
     if (enable) {
+#ifdef LCD_SPI_DOUBLEBUFF
+      spi0isFree = false;
+#endif
       nrf_spim_enable(p_spim);
     }
-    else nrf_spim_disable(p_spim);
+    else {
+       nrf_spim_disable(p_spim);
+#ifdef LCD_SPI_DOUBLEBUFF
+       spi0isFree = true;
+#endif
+    }
 #else
 #if NRF_SD_BLE_API_VERSION>5
     NRF_SPI_Type *p_spi = (NRF_SPI_Type *)spi0.u.spi.p_reg;
@@ -2123,6 +2136,9 @@ void jshFlashRead(void * buf, uint32_t addr, uint32_t len) {
 #ifdef SPIFLASH_BASE
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
+#ifdef LCD_SPI_DOUBLEBUFF
+    WAIT_UNTIL(spi0isFree, "SPI0-FlashRead");
+#endif
     //jsiConsolePrintf("SPI Read %d %d\n",addr,len);
     if (
         spiFlashLastAddress!=addr
