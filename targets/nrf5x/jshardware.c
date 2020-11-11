@@ -2176,6 +2176,9 @@ void jshFlashWrite(void * buf, uint32_t addr, uint32_t len) {
 #ifdef SPIFLASH_BASE
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
+#ifdef LCD_SPI_DOUBLEBUFF
+    WAIT_UNTIL(spi0isFree, "SPI0-FlashWrite");
+#endif
     // disable CS if jshFlashRead had left it set
     if (spiFlashLastAddress) {
       nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
