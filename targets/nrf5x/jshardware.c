@@ -77,11 +77,14 @@ void app_error_fault_handler(uint32_t id, uint32_t pc, uint32_t info) {
 #include "nrf_drv_gpiote.h"
 #include "nrf_drv_ppi.h"
 #include "nrf_drv_spi.h"
-
 #include "nrf5x_utils.h"
+
 #if NRF_SD_BLE_API_VERSION<5
 #include "softdevice_handler.h"
+#else
+#include "nrfx_spim.h"
 #endif
+
 #ifdef MICROBIT
 #include "jswrap_microbit.h"
 #endif
@@ -276,7 +279,13 @@ volatile bool nrf_analog_read_interrupted = false;
 #endif
 
 #if SPI_ENABLED
-static const nrf_drv_spi_t spi0 = NRF_DRV_SPI_INSTANCE(0);
+#ifdef NRF52832
+#define SPI_MAXAMT 255
+#else // NRF52840/NRF52833/etc  support more bytes
+#define SPI_MAXAMT 65535
+#endif
+
+static nrf_drv_spi_t spi0 = NRF_DRV_SPI_INSTANCE(0);
 bool spi0Initialised = false;
 unsigned char *spi0RxPtr;
 unsigned char *spi0TxPtr;
@@ -299,13 +308,25 @@ void spi0EvtHandler(nrf_drv_spi_evt_t const * p_event
    * have to use the IRQ to fire off the next send */
   if (spi0Cnt>0) {
     size_t c = spi0Cnt;
-    if (c>255) c=255;
+    if (c>SPI_MAXAMT) c=SPI_MAXAMT;
     unsigned char *tx = spi0TxPtr;
     unsigned char *rx = spi0RxPtr;
     spi0Cnt -= c;
     if (spi0TxPtr) spi0TxPtr += c;
     if (spi0RxPtr) spi0RxPtr += c;
+#if NRF_SD_BLE_API_VERSION<5
     uint32_t err_code = nrf_drv_spi_transfer(&spi0, tx, c, rx, rx?c:0);
+#else
+    // don't use nrf_drv_spi_transfer here because it truncates length to 8 bits! (nRF52840 can do >255)
+    nrfx_spim_xfer_desc_t const spim_xfer_desc = {
+        .p_tx_buffer = tx,
+        .tx_length   = c,
+        .p_rx_buffer = rx,
+        .rx_length   = rx?c:0,
+    };
+    uint32_t err_code = nrfx_spim_xfer(&spi0.u.spim, &spim_xfer_desc, 0);
+#endif
+
     if (err_code == NRF_SUCCESS)
       return;
     // if fails, we drop through as if we succeeded
@@ -420,6 +441,38 @@ static unsigned char spiFlashStatus() {
   nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
   return buf;
 }
+
+#ifdef SPIFLASH_SLEEP_CMD
+/// Is SPI flash awake?
+bool spiFlashAwake = false;
+
+static void spiFlashWakeUp() {
+  /*unsigned char buf[4];
+  int tries = 10;
+  do {
+    buf[0] = 0xAB;
+    buf[1] = 0x00; // dummy
+    buf[2] = 0x00; // dummy
+    buf[3] = 0x00; // dummy
+    nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+    spiFlashWrite(buf,4);
+    spiFlashRead(buf,3);
+    nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+  } while (buf[0] != 0x15 && buf[1] != 0x15 && buf[2] != 0x15 && tries--);*/
+  unsigned char buf[1];
+  buf[0] = 0xAB;
+  spiFlashWriteCS(buf,1);
+}
+void spiFlashSleep() {
+  if (spiFlashLastAddress) {
+    nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+    spiFlashLastAddress = 0;
+  }
+  unsigned char buf[1];
+  buf[0] = 0xB9;
+  spiFlashWriteCS(buf,1);
+}
+#endif
 #endif
 
 
@@ -606,9 +659,14 @@ void jshResetPeripherals() {
 #endif
   spiFlashLastAddress = 0;
   jshDelayMicroseconds(100);
+#ifdef SPIFLASH_SLEEP_CMD
+  spiFlashWakeUp();
+  spiFlashAwake = true;
+#endif
+
   // disable lock bits
-  unsigned char buf[2];
   // wait for write enable
+  unsigned char buf[2];
   int timeout = 1000;
   while (timeout-- && !(spiFlashStatus()&2)) {
     buf[0] = 6; // write enable
@@ -800,6 +858,9 @@ void jshKill() {
     nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
     spiFlashLastAddress = 0;
   }
+#endif
+#ifdef SPIFLASH_SLEEP_CMD
+  spiFlashSleep(); // power down SPI flash to save a few uA
 #endif
 #ifdef I2C_SLAVE
   if (nrf_drv_twis_is_enabled(TWIS1_INSTANCE_INDEX)) {
@@ -1680,6 +1741,9 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
     freq = SPI_FREQUENCY_FREQUENCY_M4;
   else
     freq = SPI_FREQUENCY_FREQUENCY_M8;
+  // NRF52840 supports >8MHz but ONLY on SPIM3
+
+
   /* Numbers for SPI_FREQUENCY_FREQUENCY_M16/SPI_FREQUENCY_FREQUENCY_M32
   are in the nRF52 datasheet but they don't appear to actually work (and
   aren't in the header files either). */
@@ -1726,9 +1790,10 @@ int jshSPISend(IOEventFlags device, int data) {
 #if SPI_ENABLED
   if (device!=EV_SPI1 || !jshIsDeviceInitialised(device)) return -1;
   jshSPIWait(device);
-#if defined(SPI0_USE_EASY_DMA)  && (SPI0_USE_EASY_DMA==1)
+#if defined(SPI0_USE_EASY_DMA)  && (SPI0_USE_EASY_DMA==1) && NRF52832
   // Hack for https://infocenter.nordicsemi.com/topic/­errata_nRF52832_Rev2/ERR/nRF52832/Rev2/l­atest/anomaly_832_58.html?cp=4_2_1_0_1_8
   // Can't use DMA for single bytes as it's broken
+  // Doesn't appear on NRF52840 or NRF52833 production parts
 #if NRF_SD_BLE_API_VERSION>5
   NRF_SPI_Type *p_spi = (NRF_SPI_Type *)spi0.u.spi.p_reg;
   NRF_SPIM_Type *p_spim = (NRF_SPIM_Type *)spi0.u.spim.p_reg;
@@ -1807,13 +1872,7 @@ void jshSPISend16(IOEventFlags device, int data) {
   if (device!=EV_SPI1 || !jshIsDeviceInitialised(device)) return;
   jshSPIWait(device);
   uint16_t tx = (uint16_t)data;
-  spi0Sending = true;
-  uint32_t err_code = nrf_drv_spi_transfer(&spi0, (uint8_t*)&tx, 2, 0, 0);
-  if (err_code != NRF_SUCCESS) {
-    spi0Sending = false;
-    jsExceptionHere(JSET_INTERNALERROR, "SPI Send Error %d\n", err_code);
-  }
-  jshSPIWait(device);
+  jshSPISendMany(device, &tx, NULL, 2, NULL);
 #endif
 }
 
@@ -1823,7 +1882,7 @@ void jshSPISend16(IOEventFlags device, int data) {
 bool jshSPISendMany(IOEventFlags device, unsigned char *tx, unsigned char *rx, size_t count, void (*callback)()) {
 #if SPI_ENABLED
   if (device!=EV_SPI1 || !jshIsDeviceInitialised(device)) return false;
-#if defined(SPI0_USE_EASY_DMA)
+#if defined(SPI0_USE_EASY_DMA) && NRF52832
   // Hack for https://infocenter.nordicsemi.com/topic/­errata_nRF52832_Rev2/ERR/nRF52832/Rev2/l­atest/anomaly_832_58.html?cp=4_2_1_0_1_8­
   if (count==1 && rx) {
     int r = jshSPISend(device, tx?*tx:-1);
@@ -1836,14 +1895,24 @@ bool jshSPISendMany(IOEventFlags device, unsigned char *tx, unsigned char *rx, s
   spi0Sending = true;
 
   size_t c = count;
-  if (c>255)
-    c=255;
+  if (c>SPI_MAXAMT) c=SPI_MAXAMT;
 
   spi0TxPtr = tx ? tx+c : 0;
   spi0RxPtr = rx ? rx+c : 0;
   spi0Cnt = count-c;
   if (callback) spi0Callback = callback;
+#if NRF_SD_BLE_API_VERSION<5
   uint32_t err_code = nrf_drv_spi_transfer(&spi0, tx, c, rx, rx?c:0);
+#else
+    // don't use nrf_drv_spi_transfer here because it truncates length to 8 bits! (nRF52840 can do >255)
+  nrfx_spim_xfer_desc_t const spim_xfer_desc = {
+      .p_tx_buffer = tx,
+      .tx_length   = c,
+      .p_rx_buffer = rx,
+      .rx_length   = rx?c:0,
+  };
+  uint32_t err_code = nrfx_spim_xfer(&spi0.u.spim, &spim_xfer_desc, 0);
+#endif
   if (err_code != NRF_SUCCESS) {
     spi0Sending = false;
     jsExceptionHere(JSET_INTERNALERROR, "SPI Send Error %d\n", err_code);
@@ -2091,6 +2160,9 @@ void jshFlashErasePage(uint32_t addr) {
 #ifdef SPIFLASH_BASE
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
+#ifdef SPIFLASH_SLEEP_CMD
+    if (!spiFlashAwake) spiFlashWakeUp();
+#endif
     // disable CS if jshFlashRead had left it set
     if (spiFlashLastAddress) {
       nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
@@ -2140,6 +2212,9 @@ void jshFlashRead(void * buf, uint32_t addr, uint32_t len) {
     WAIT_UNTIL(spi0isFree, "SPI0-FlashRead");
 #endif
     //jsiConsolePrintf("SPI Read %d %d\n",addr,len);
+#ifdef SPIFLASH_SLEEP_CMD
+    if (!spiFlashAwake) spiFlashWakeUp();
+#endif
     if (
         spiFlashLastAddress!=addr
 #ifdef SPIFLASH_SHARED_SPI
@@ -2186,7 +2261,7 @@ void jshFlashWrite(void * buf, uint32_t addr, uint32_t len) {
     }
     //jsiConsolePrintf("SPI Write %d %d\n",addr, len);
     unsigned char b[5];
-#if defined(BANGLEF5)
+#if defined(DTNO1_F5)
     /* Hack - for some reason the F5 doesn't seem to like writing >1 byte
      * quickly. Also this way works around paging issues. */
     for (unsigned int i=0;i<len;i++) {
@@ -2313,6 +2388,12 @@ bool jshSleep(JsSysTime timeUntilWake) {
     nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
     spiFlashLastAddress = 0;
   }
+#ifdef SPIFLASH_SLEEP_CMD
+  if (spiFlashAwake) {
+    spiFlashSleep();
+    spiFlashAwake = false;
+  }
+#endif
 #endif
 
   if (timeUntilWake < JSSYSTIME_MAX) {

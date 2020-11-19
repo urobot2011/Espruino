@@ -399,6 +399,11 @@ ifdef USE_LCD_ST7789_8BIT
   SOURCES += libs/graphics/lcd_st7789_8bit.c
 endif
 
+ifdef USE_LCD_MEMLCD
+  DEFINES += -DUSE_LCD_MEMLCD
+  SOURCES += libs/graphics/lcd_memlcd.c
+endif
+
 ifdef USE_LCD_SPI_UNBUF
   DEFINES += -DUSE_LCD_SPI_UNBUF
   WRAPPERSOURCES += libs/graphics/lcd_spi_unbuf.c
@@ -760,7 +765,9 @@ $(PLATFORM_CONFIG_FILE): boards/$(BOARD).py scripts/build_platform_config.py
 # Generation of temporary files and setting of wrappersources is already done this moment
 ifndef NO_COMPILE
 
-compile=$(CC) $(CFLAGS) $< -o $@
+#compile=$(CC) $(CFLAGS) $< -o $@
+# Use relative paths - when macros use __FILE__ this stops us including the whole build path
+compile=$(CC) $(CFLAGS) $(shell realpath --relative-to $(shell pwd) $<) -o $@
 
 link=$(LD) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 

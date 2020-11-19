@@ -1,3 +1,19 @@
+            Bangle.js: increase default advertising interval from 375 to 200ms to ease connections
+            Fix Math.acos for negative values (fix #1950)
+            nRF5x: Add callback param to 'NRF.restart', allowing code to be called with softdevice disabled
+            Bangle.js: fix require("locale").time(new Date()) for default locale
+            Now use exponents when printing doubles >= 1E21 or < 1E-6 (fix #1489)
+            Fix Regexp handling of unescaped '.' in character group: /[.]/ (fix #1948)
+            Now error if using (unsupported) RegExp backreferences
+            nRF52: Ensure SPI 1 byte DMA errata workaround isn't applied to non-52832 parts
+            nRF52: When outputting assertions, if we have an terminal device (eg LCD) use that
+            When load(filename) is used, set global variable __FILE__ to the filename
+            Util Timer no longer uses RTC - works based on estimated time from the hardware timer itself (fix #1749, ref #1444)
+            Pull in fixed SHT3C.min.js for RAK5010
+            Add support for relaying full touchscreen events in devices that support it
+            Fix flip-on-idle behaviour for non-Bangle.js smartwatch ports
+            Add support for buttonless bootloader (first boot only, times out after 5 seconds)
+ 
      2v08 : nRF52: Added option to build in I2C slave support
             Fix Tensorflow aiGesture regression from 2v07 (re-add opcodes) (fix #1936)
             Add support for > 1bpp custom bitmap fonts
@@ -49,6 +65,9 @@
             micro:bit: Re-added tab complete (enough space now)
             micro:bit: Added a fake pin for LED/LED1 that uses the LED matrix
             nRF52: Allow a cccd_handle of 0 for startNotifications
+            Bangle.js: Power down SPI flash when sleeping/off
+            nRF52: Use the best available hardware timer for PWM taking frequency into account
+            Fix delay in scheduling after initial setTimeout call (from 2v06 and later)
             Align Tensorflow arena to 16 bytes - new Tensorflow requires this (fix #1914)
             Fix ReferenceError when arguments[0] is used when an argument is undefined (fix #1691)
             JSON conversion for console now removes quotes on key lengths bigger than 15 (63)
