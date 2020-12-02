@@ -31,10 +31,10 @@ info = {
    'optimizeflags' : '-Os',
    'libraries' : [
      'BLUETOOTH',
-     'NET',
-     'GRAPHICS',
-     'NFC',
-     'NEOPIXEL'
+#    'NET',
+     'GRAPHICS'
+#    'NFC',
+#    'NEOPIXEL'
    ],
    'makefile' : [
      'DEFINES+=-DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
@@ -59,10 +59,13 @@ chip = {
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
-    'address' : ((118 - 10) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
     'page_size' : 4096,
-    'pages' : 10,
-    'flash_available' : 512 - ((31 + 8 + 2 + 10)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+    'address' : ((0x7a - 2 - 24) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
+    'pages' : 24,
+#   'address' : ((118 - 10) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
+#   'pages' : 10,
+    'flash_available' : 512 - ((0x1F + 6 + 2 + 24)*4) # Softdevice 2.0 uses 28 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+#   'flash_available' : 512 - ((31 + 8 + 2 + 10)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
   },
 };
 

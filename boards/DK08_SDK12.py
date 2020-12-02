@@ -29,7 +29,7 @@ info = {
    'libraries' : [
      'BLUETOOTH',
 #     'NET',
-     'GRAPHICS',
+     'GRAPHICS'
 #     'NFC',
 #     'NEOPIXEL'
    ],
