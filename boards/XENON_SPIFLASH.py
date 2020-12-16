@@ -44,6 +44,7 @@ info = {
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
+     'DEFINES += -DNRF_USB=1 -DUSB -DUART1_ENABLED=1 -DRNG_CONFIG_POOL_SIZE=64',
      'DEFINES += -DNRF_BL_DFU_INSECURE=1',
      'NRF_SDK15=1'
    ]
