@@ -2650,7 +2650,7 @@ JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options) {
     "return_object" : "Promise"
 }
 */
-#ifdef NRF52
+#ifdef NRF52_SERIES
 JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac) {
   if (jsble_has_peripheral_connection()) {
     m_central_conn_handle = m_peripheral_conn_handle;
