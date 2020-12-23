@@ -2641,7 +2641,7 @@ JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options) {
     "type" : "staticmethod",
     "class" : "NRF",
     "name" : "getGattforCentralServer",
-    "#if" : "defined(NRF52) || defined(ESP32)",
+    "ifdef" : "NRF52_SERIES",
     "generate" : "jswrap_ble_getGattforCentralServer",
     "params" : [
       ["mac","JsVar","The MAC address to connect to"]
