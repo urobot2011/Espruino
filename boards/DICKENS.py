@@ -124,14 +124,11 @@ chip = {
 
 devices = {
 <<<<<<< HEAD
-<<<<<<< HEAD
   'BTN1' : { 'pin' : 'D46', 'pinstate' : 'IN_PULLDOWN' }, # BL ATMOS Pin negated in software
   'BTN2' : { 'pin' : 'D28', 'pinstate' : 'IN_PULLDOWN' }, # TL Pin negated in software
   'BTN3' : { 'pin' : 'D29', 'pinstate' : 'IN_PULLDOWN' }, # TR STATUM Pin negated in software
   'BTN4' : { 'pin' : 'D42', 'pinstate' : 'IN_PULLDOWN' }, # BR Pin negated in software
 =======
-=======
->>>>>>> parent of 7d9f3a19... re-order buttons, enable bootloader
   'BTN1' : { 'pin' : 'D29', 'pinstate' : 'IN_PULLDOWN' }, # TR STATUS  Pin negated in software
   'BTN2' : { 'pin' : 'D46', 'pinstate' : 'IN_PULLDOWN' }, # BL ATMOS  Pin negated in software
   'BTN3' : { 'pin' : 'D42', 'pinstate' : 'IN_PULLDOWN' }, # BR Pin negated in software
