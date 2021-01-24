@@ -338,7 +338,7 @@ typedef struct {
 
 
 #ifdef SMAQ3
-//IOEventFlags fakeBTN1Flags, fakeBTN2Flags, fakeBTN3Flags;
+IOEventFlags fakeBTN1Flags, fakeBTN2Flags, fakeBTN3Flags;
 
 JshI2CInfo i2cAccel;
 JshI2CInfo i2cMag;
@@ -525,16 +525,10 @@ typedef enum {
   JSBT_STEP_EVENT = 1<<12, ///< we've detected a step via the pedometer
   JSBT_SWIPE_LEFT = 1<<13, ///< swiped left over touchscreen
   JSBT_SWIPE_RIGHT = 1<<14, ///< swiped right over touchscreen
-#ifdef SMAQ3
-  JSBT_SWIPE_UP = 1<<15, ///< swiped up over touchscreen
-  JSBT_SWIPE_DOWN = 1<<16, ///< swiped down over touchscreen
-  JSBT_SWIPE_MASK = JSBT_SWIPE_LEFT | JSBT_SWIPE_RIGHT | JSBT_SWIPE_UP | JSBT_SWIPE_DOWN,
-#else
   JSBT_SWIPE_MASK = JSBT_SWIPE_LEFT | JSBT_SWIPE_RIGHT,
   JSBT_TOUCH_LEFT = 1<<15, ///< touch lhs of touchscreen
   JSBT_TOUCH_RIGHT = 1<<16, ///< touch rhs of touchscreen
   JSBT_TOUCH_MASK = JSBT_TOUCH_LEFT | JSBT_TOUCH_RIGHT,
-#endif
   JSBT_HRM_DATA = 1<<17, ///< Heart rate data is ready for analysis
   JSBT_TWIST_EVENT = 1<<18, ///< Watch was twisted
   JSBT_FACE_UP = 1<<19, ///< Watch was turned face up/down (faceUp holds the actual state)
@@ -1034,15 +1028,10 @@ void touchHandler(bool state, IOEventFlags flags) {
   static unsigned char lastx, lasty;
   static bool lastTouch;
   if (gesture!=lastGesture) {
-    IOEvent evt;
     switch (gesture) { // gesture
     case 0:break; // no gesture
-    case 1: // slide down
-        bangleTasks |= JSBT_SWIPE_DOWN;
-        break; 
-    case 2: // slide up
-        bangleTasks |= JSBT_SWIPE_UP;
-        break; 
+    case 1:break; // slide down
+    case 2:break; // slide up
     case 3: // slide left
         bangleTasks |= JSBT_SWIPE_LEFT;
         break;
@@ -1050,15 +1039,14 @@ void touchHandler(bool state, IOEventFlags flags) {
         bangleTasks |= JSBT_SWIPE_RIGHT;
         break;
     case 5: // single click
-        evt.flags = EV_TOUCH;
-        evt.data.chars[0] = x * LCD_WIDTH / 160;
-        evt.data.chars[1] = y * LCD_HEIGHT / 160;
-        evt.data.chars[2] = touch ? 1 : 0;
-        jshPushEvent(&evt);
-        break;
+      if (x<80) bangleTasks |= JSBT_TOUCH_LEFT;
+      else bangleTasks |= JSBT_TOUCH_RIGHT;
+      break;
     }
+
+
   }
-/*
+
   if (touch!=lastTouch || lastx!=x || lasty!=y) {
     IOEvent evt;
     evt.flags = EV_TOUCH;
@@ -1081,7 +1069,7 @@ void touchHandler(bool state, IOEventFlags flags) {
   lastBtn1 = btn1;
   lastBtn2 = btn2;
   lastBtn3 = btn3;
-*/
+
   lastGesture = gesture;
 }
 #endif
@@ -2045,9 +2033,6 @@ void jswrap_banglejs_init() {
 
 #ifdef SMAQ3
   jshSetPinShouldStayWatched(BTN1_PININDEX,true);
-    channel = jshPinWatch(BTN1_PININDEX, true);
-  if (channel!=EV_NONE) jshSetEventCallback(channel, btn1Handler);
-/*
   fakeBTN2Flags = jshPinWatch(BTN1_PININDEX, true);
   if (fakeBTN2Flags!=EV_NONE) jshSetEventCallback(fakeBTN2Flags, btn1Handler);
   jshSetPinShouldStayWatched(FAKE_BTN1_PIN,true);
@@ -2055,7 +2040,6 @@ void jswrap_banglejs_init() {
   jshSetPinShouldStayWatched(FAKE_BTN3_PIN,true);
   fakeBTN3Flags = jshPinWatch(FAKE_BTN3_PIN, true);
   // TODO: FAKE_BTN1/2_PIN->input_pullup/disconnect input?
-*/
 #else
   jshSetPinShouldStayWatched(BTN1_PININDEX,true);
   jshSetPinShouldStayWatched(BTN2_PININDEX,true);
@@ -2130,10 +2114,10 @@ void jswrap_banglejs_kill() {
 
 #ifdef SMAQ3
   jshSetPinShouldStayWatched(BTN1_PININDEX,false);
-  //jshSetPinShouldStayWatched(FAKE_BTN1_PIN,false);
-  //jshSetPinShouldStayWatched(FAKE_BTN3_PIN,false);
- // jshPinWatch(FAKE_BTN1_PIN, false);
-  //jshPinWatch(FAKE_BTN3_PIN, false);
+  jshSetPinShouldStayWatched(FAKE_BTN1_PIN,false);
+  jshSetPinShouldStayWatched(FAKE_BTN3_PIN,false);
+  jshPinWatch(FAKE_BTN1_PIN, false);
+  jshPinWatch(FAKE_BTN3_PIN, false);
 #else
   jshPinWatch(BTN1_PININDEX, false);
   jshPinWatch(BTN2_PININDEX, false);
@@ -2414,16 +2398,6 @@ bool jswrap_banglejs_idle() {
         flipTimer = 0;
       }
     }
-#ifdef SMAQ3
-    if (bangleTasks & JSBT_SWIPE_MASK) {
-      JsVar *o = jsvNewFromInteger(((bangleTasks & JSBT_SWIPE_LEFT)?-1:0) |
-                                   ((bangleTasks & JSBT_SWIPE_RIGHT)?1:0) |
-                                   ((bangleTasks & JSBT_SWIPE_UP)?-2:0)   |
-                                   ((bangleTasks & JSBT_SWIPE_DOWN)?2:0));
-      jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"swipe", &o, 1);
-      jsvUnLock(o);
-    }
-#else
     if (bangleTasks & JSBT_SWIPE_MASK) {
       JsVar *o = jsvNewFromInteger((bangleTasks & JSBT_SWIPE_LEFT)?-1:1);
       jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"swipe", &o, 1);
@@ -2435,7 +2409,6 @@ bool jswrap_banglejs_idle() {
       jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"touch", &o, 1);
       jsvUnLock(o);
     }
-#endif
   }
   jsvUnLock(bangle);
   bangleTasks = JSBT_NONE;
@@ -3400,3 +3373,38 @@ expect an LED, this is an object that behaves like a pin, but which just display
 a circle on the display
 */
 
+
+/*JSON{
+  "type" : "variable",
+  "name" : "BTN1",
+  "generate_full" : "FAKE_BTN1_PIN",
+  "ifdef" : "SMAQ3",
+  "return" : ["pin",""]
+}
+This is a fake pin, used only for injecting 'fake' button press events from the touchscreen
+*/
+/*JSON{
+  "type" : "variable",
+  "name" : "BTN2",
+  "generate_full" : "BTN1_PININDEX",
+  "ifdef" : "SMAQ3",
+  "return" : ["pin",""]
+}
+*/
+/*JSON{
+  "type" : "variable",
+  "name" : "BTN3",
+  "generate_full" : "FAKE_BTN3_PIN",
+  "ifdef" : "SMAQ3",
+  "return" : ["pin",""]
+}
+This is a fake pin, used only for injecting 'fake' button press events from the touchscreen
+*/
+/*JSON{
+  "type" : "variable",
+  "name" : "BTN",
+  "generate_full" : "BTN1_PININDEX",
+  "ifdef" : "SMAQ3",
+  "return" : ["pin",""]
+}
+*/
