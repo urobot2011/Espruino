@@ -3,35 +3,33 @@
   buttons : {"Yes":true,"No":false}
 } */
 (function(msg,options) {
+  var FSIZE = 18;
   if (!options) options={};
   if (!options.buttons)
     options.buttons = {"Yes":true,"No":false};
-  var loc = require("locale");
   var btns = Object.keys(options.buttons);
   if (!options.selected)
     options.selected = 0;
   function draw() {
-    g.reset().setFont("6x8",2).setFontAlign(0,0).setColor(7);
+    g.reset().setFont("Vector",FSIZE).setFontAlign(0,0);
     var W = g.getWidth();
     var H = g.getHeight();
     var title = options.title;
     if (title) {
-      title = loc.translate(title);
-      g.drawString(title,W/2,34);
+      g.drawString(title,W/2,24);
       var w = (g.stringWidth(title)+16)/2;
-      g.fillRect((W/2)-w,44,(W/2)+w,44);
+      g.fillRect((W/2)-w,34,(W/2)+w,34);
     }
     var lines = msg.split("\n");
-    var offset = (H - lines.length*16)/2;
+    var offset = (H - lines.length*FSIZE)/2;
     lines.forEach((line,y)=>
-      g.drawString(loc.translate(line),W/2,offset + y*16));    
+      g.drawString(line,W/2,offset + y*FSIZE));    
     var buttonWidths = 0;
-    var buttonPadding = 16;
-    btns.forEach(btn=>buttonWidths += buttonPadding+g.stringWidth(loc.translate(btn)));
+    var buttonPadding = 48;
+    btns.forEach(btn=>buttonWidths += buttonPadding+g.stringWidth(btn));
     var x = (W-buttonWidths)/2;
-    var y = H-40;
+    var y = H-20;
     btns.forEach((btn,idx)=>{
-      btn = loc.translate(btn);
       var w = g.stringWidth(btn);
       x += (buttonPadding+w)/2;      
       var bw = 2+w/2;
@@ -44,40 +42,50 @@
                   x-bw-4,y+8,
                   x-bw-4,y-8,
                   x-bw,y-12];
-      g.setColor(idx==options.selected ? 1 : 0).fillPoly(poly).setColor(7).drawPoly(poly).drawString(btn,x,y+1);
+      g.setColor(idx==options.selected ? 3 : 0).fillPoly(poly).setColor(-1).drawPoly(poly).drawString(btn,x,y+1);
       x += (buttonPadding+w)/2;
     });
-    g.setColor(7).flip();  // turn screen on
+    g.setColor(-1).flip();  // turn screen on
   }
-  
-  if (Bangle.btnWatches) {
-    Bangle.btnWatches.forEach(clearWatch);
-    Bangle.btnWatches = undefined;
-  }
+  if (Bangle.prompt) {E.removeListener("touch",Bangle.prompt); Bangle.prompt=undefined;}
   g.clear(1); // clear screen
-  Bangle.drawWidgets(); // redraw widgets
   if (!msg) {
     return Promise.resolve();
   }
   draw();
-  return new Promise(resolve=>{
-    Bangle.btnWatches = [
-      setWatch(function() {
-        if (options.selected>0) {
-          options.selected--;
-          draw();
-        }
-      }, BTN1, {repeat:1}),
-      setWatch(function() {
-        if (options.selected<btns.length-1) {
-          options.selected++;
-          draw(); 
-        }
-      }, BTN3, {repeat:1}),
-      setWatch(function() {
+  var RES = null;
+  Bangle.prompt =  function(p){
+    var x = p.x; var y = p.y;
+    if (y<120)return -1;
+    if (btns.length==1) {
+      if (x>60 && x<120) {
         E.showPrompt();
-        resolve(options.buttons[btns[options.selected]]);
-      }, BTN2, {repeat:1})
-    ];
+        return RES(options.buttons[btns[options.selected]]);
+      } 
+      return;
+    } else {
+      if (x<70) {
+        if (options.selected != 0) {
+          options.selected = 0;
+          draw();
+        } else {
+          E.showPrompt();
+          return RES(options.buttons[btns[options.selected]]);
+        }
+      } else if (x>110) {
+        if (options.selected!=1) {
+          options.selected=1;
+          draw(); 
+        } else {
+          E.showPrompt();
+          return RES(options.buttons[btns[options.selected]]);
+        }
+      }
+    }
+    return;
+  };
+  return new Promise(resolve=>{
+    RES = resolve;
+    E.on("touch",Bangle.prompt);
   });
 })

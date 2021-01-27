@@ -1,12 +1,8 @@
 (function(items) {
-  if (Bangle.btnWatches) {
-    Bangle.btnWatches.forEach(clearWatch);
-    Bangle.btnWatches = undefined;
-  }
-  g.clear(1);g.flip(); // clear screen if no menu supplied
-  Bangle.drawWidgets();
-  if (!items) return;
-  var w = g.getWidth()-9;
+  g.clearRect(0,0,175,174);
+  if (Bangle.buttons) {E.removeListener("touch",Bangle.buttons); Bangle.buttons=undefined;}
+  if (!items){ g.flip(); return; }
+  var w = g.getWidth();
   var h = g.getHeight();
   var menuItems = Object.keys(items);
   var options = items[""];
@@ -15,8 +11,8 @@
   options.fontHeight=16;
   options.x=0;
   options.x2=w-2;
-  options.y=24;
-  options.y2=220;
+  options.y=0;
+  options.y2=150;
   if (options.selected === undefined)
     options.selected = 0;
   if (!options.fontHeight)
@@ -29,19 +25,17 @@
     y += options.fontHeight+2;
   var cBg = 0; // background col
   var cFg = 7; // foreground col
-  var cHighlightBg = 1;
+  var cHighlightBg = 3;
   var cHighlightFg = 7;
-  var loc = require("locale");
   var l = {
     draw : function() {
       g.reset();
       g.setColor(cFg);
-      g.setFont('6x8',2).setFontAlign(0,-1,0);
+      g.setFont('Vector',18).setFontAlign(0,-1,0);
       if (options.title) {
         g.drawString(options.title,(x+x2)/2,y-options.fontHeight-2);
         g.drawLine(x,y-2,x2,y-2);
       }
-
       var rows = 0|Math.min((y2-y) / options.fontHeight,menuItems.length);
       var idx = E.clip(options.selected-(rows>>1),0,menuItems.length-rows);
       var iy = y;
@@ -54,12 +48,11 @@
         g.fillRect(x,iy,x2,iy+options.fontHeight-1);
         g.setColor(hl ? cHighlightFg : cFg);
         g.setFontAlign(-1,-1);
-        g.drawString(loc.translate(name),x,iy);
+        g.drawString(name,x,iy);
         if ("object" == typeof item) {
           var xo = x2;
           var v = item.value;
           if (item.format) v=item.format(v);
-          v = loc.translate(""+v);
           if (l.selectEdit && idx==options.selected) {
             xo -= 24 + 1;
             g.setColor(cHighlightBg);
@@ -76,38 +69,8 @@
       }
       g.setFontAlign(-1,-1);
       var more = idx<menuItems.length;      
-      g.drawImage("\b\b\x01\x108|\xFE\x10\x10\x10\x10"/*E.toString(8,8,1,
-        0b00010000,
-        0b00111000,
-        0b01111100,
-        0b11111110,
-        0b00010000,
-        0b00010000,
-        0b00010000,
-        0b00010000
-      )*/,w,20);
-      g.drawImage("\b\b\x01\x10\x10\x10\x10\xFE|8\x10"/*E.toString(8,8,1,
-        0b00010000,
-        0b00010000,
-        0b00010000,
-        0b00010000,
-        0b11111110,
-        0b01111100,
-        0b00111000,
-        0b00010000
-      )*/,w,140);
-      g.drawImage("\b\b\x01\x00\b\f\x0E\xFF\x0E\f\b"/*E.toString(8,8,1,
-        0b00000000,
-        0b00001000,
-        0b00001100,
-        0b00001110,
-        0b11111111,
-        0b00001110,
-        0b00001100,
-        0b00001000
-      )*/,w,84);
-      g.setColor(more?7:0);
-      g.fillPoly([72,166,104,166,88,174]);
+      g.setColor(more?-1:0);
+      g.fillPoly([104,175,136,175,120,179]);
       g.flip();
     },
     select : function(dir) {
@@ -138,11 +101,28 @@
       l.draw();
     }
   };
+  var selbut = -1;
+  var butdefs = [{x1:8,y1:150,x2:44,y2:175,poly:[8,175,26,150,44,175]},
+                 {x1:69,y1:150,x2:105,y2:175,poly:[69,150,105,150,69,175,105,175]},
+                 {x1:130,y1:150,x2:166,y2:175,poly:[130,150,166,150,148,175]}];
+  var drawButton = function(d,sel){
+       (sel?g.setColor(3):g.setColor(1)).fillRect(d.x1,d.y1,d.x2,d.y2);
+       g.setColor(-1).fillPoly(d.poly).flip();
+  };
+  for(var i=0;i<3;i++)drawButton(butdefs[i],false);
+  var isPressed = function(p,n) {
+      var d = butdefs[n];
+      var bb = (p.x>d.x1 && p.x<d.x2 && p.y>130);
+      if (bb) {selbut=n; drawButton(d,true);setTimeout(()=>{drawButton(d,false);},150);}
+      return bb;
+  };
+  Bangle.buttons = function(p){
+    if (isPressed(p,0)) l.move(-1);
+    else if (isPressed(p,1)) l.select(); 
+    else if (isPressed(p,2)) l.move(1);
+    else selbut=-1;
+  };
   l.draw();
-  Bangle.btnWatches = [
-    setWatch(function() { l.move(-1); }, BTN1, {repeat:1}),
-    setWatch(function() { l.move(1); }, BTN3, {repeat:1}),
-    setWatch(function() { l.select(); }, BTN2, {repeat:1})
-  ];
+  E.on("touch",Bangle.buttons);
   return l;  
 })
