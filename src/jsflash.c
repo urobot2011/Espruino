@@ -504,7 +504,7 @@ uint32_t jsfFindFile(JsfFileName name, JsfFileHeader *returnedHeader) {
       if (memcmp(header.name.c, name.c, sizeof(name.c))==0) {
         uint32_t endOfFile = addr + (uint32_t)sizeof(JsfFileHeader) + jsfGetFileSize(&header);
         if (endOfFile<addr || endOfFile>JSF_END_ADDRESS)
-          return 0; // corrupt - file too long
+          return 0; //  - file too long
         if (returnedHeader)
           *returnedHeader = header;
         return addr+(uint32_t)sizeof(JsfFileHeader);
@@ -865,7 +865,7 @@ JsVar *jsfGetBootCodeFromFlash(bool isReset) {
 
 bool jsfLoadBootCodeFromFlash(bool isReset) {
   // Load code in .boot0/1/2/3 UNLESS BTN1 is HELD DOWN
-#ifdef BANGLEJS
+#if defined (BANGLEJS) && !defined (SMAQ3)
   if (jshPinGetValue(BTN1_PININDEX)!=BTN1_ONSTATE)
 #endif
   {
