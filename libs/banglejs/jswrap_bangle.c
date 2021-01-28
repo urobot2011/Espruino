@@ -1180,7 +1180,7 @@ When brightness using `Bange.setLCDBrightness`.
 */
 void jswrap_banglejs_setLCDPower(bool isOn) {
 #ifdef LCD_CONTROLLER_LPM013M126
-  jshPinSetState(LCD_DISP, isOn);
+  jshPinSetState(LCD_DISP, true);  // only turn on and off backlight for always on display
 #endif
 #ifdef LCD_CONTROLLER_ST7789_8BIT
   if (isOn) { // wake
