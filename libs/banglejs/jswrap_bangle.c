@@ -3408,6 +3408,12 @@ The second `options` argument can contain:
 }
 */
 /*JSON{
+    "type" : "staticmethod", "class" : "E", "name" : "showMessage", "patch":true,
+    "generate_js" : "libs/js/banglejs/E_showMessage_SMAQ3.js",
+    "#if" : "defined(BANGLEJS) && defined(SMAQ3)"
+}
+*/
+/*JSON{
     "type" : "staticmethod", "class" : "E", "name" : "showMenu", "patch":true,
     "generate_js" : "libs/js/banglejs/E_showMenu_F5.js",
     "#if" : "defined(BANGLEJS) && defined(DTNO1_F5)"

@@ -2,7 +2,7 @@
   g.clear(1).flip(); // clear screen
   Bangle.drawWidgets(); // redraw widgets
   //g.reset().setFont("6x8",(g.getWidth()>128)?2:1).setFontAlign(0,0);
-  g.reset().setFont("Vector",18).setFontAlign(0,0);
+  g.reset().setFont("6x8",2).setFontAlign(0,0);
   var loc = require("locale");
   var W = g.getWidth();
   var H = g.getHeight();
