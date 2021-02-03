@@ -25,7 +25,7 @@ info = {
 # 'default_console_baudrate' : "9600",
  'variables' : 10000, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
- 'binary_name' : 'espruino_%v_smaq3_spiflash.hex',
+ 'binary_name' : 'espruino_%v_smaq3.hex',
  'build' : {
    'optimizeflags' : '-Os',
    'libraries' : [
@@ -52,7 +52,7 @@ info = {
      'JSMODULESOURCES += libs/js/banglejs/locale.min.js',
      'DEFINES += -DBANGLEJS',
      'DEFINES += -D\'IS_PIN_A_BUTTON(PIN)=((PIN==17)||(PIN==40)||(PIN==41))\'',
-#     'DEFINES += -DSPIFLASH_SLEEP_CMD', # SPI flash needs to be explicitly slept and woken up
+     'DEFINES += -DSPIFLASH_SLEEP_CMD', # SPI flash needs to be explicitly slept and woken up
 
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6',
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
@@ -61,6 +61,7 @@ info = {
    ]
  }
 };
+
 
 chip = {
   'part' : "NRF52840",
@@ -75,10 +76,14 @@ chip = {
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
-    'address' : 0x60000000, # put this in external spiflash (see below)
+    'address' : ((246 - 64) * 4096), # Bootloader takes pages 248-255, FS takes 246-247
     'page_size' : 4096,
-    'pages' : 2048, # Entire 4MB of external flash
-    'flash_available' : 1024 - ((31 + 8 + 2)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2. Each page is 4 kb.
+    'pages' : 64,
+    'flash_available' : 1024 - ((38 + 8 + 2 + 64)*4) # Softdevice uses 0x26=38 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+#    'address' : 0x60000000, # put this in external spiflash (see below)
+#    'page_size' : 4096,
+#    'pages' : 1024, # Entire 4MB of external flash
+#    'flash_available' : 1024 - ((31 + 8 + 2 + 10)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
   },
 };
 
@@ -140,7 +145,7 @@ devices = {
             'pin_miso' : 'D13', # D1
 #            'pin_wp' : 'D', # D2
 #            'pin_rst' : 'D', # D3
-            'size' : 4096*2048, # 8MB
+            'size' : 4096*1024, # 4MB
             'memmap_base' : 0x60000000 # map into the address space (in software)
           }
 };
