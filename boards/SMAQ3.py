@@ -75,10 +75,14 @@ chip = {
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
-    'address' : 0x60000000, # put this in external spiflash (see below)
-    'page_size' : 4096,
-    'pages' : 2048, # Entire 4MB of external flash
-    'flash_available' : 1024 - ((31 + 8 + 2)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2. Each page is 4 kb.
+#   'address' : ((246 - 10) * 4096), # Bootloader takes pages 248-255, FS takes 246-247
+#  'page_size' : 4096,
+#   'pages' : 10,
+#   'flash_available' : 1024 - ((38 + 8 + 2 + 10)*4) # Softdevice uses 0x26=38 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+  'address' : 0x60000000, # put this in external spiflash (see below)
+  'page_size' : 4096,
+  'pages' : 2048, # Entire 8MB of external flash
+  'flash_available' : 1024 - ((31 + 8 + 2)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
   },
 };
 
@@ -132,7 +136,12 @@ devices = {
             'pin_sda' : 'D44',
             'pin_scl' : 'D45'
           },
-# PRESSURE
+  'PRESSURE' : {
+            'device' : 'BMP280', 
+            'addr' : 0x1E,
+            'pin_sda' : 'D47',
+            'pin_scl' : 'D2'            
+  },
   'SPIFLASH' : {
             'pin_cs' : 'D14',
             'pin_sck' : 'D16',
