@@ -453,6 +453,9 @@ static unsigned char spiFlashStatus() {
   return buf;
 }
 
+
+#if defined(SMAQ3) && !defined(SPIFLASH_SLEEP_CMD)
+
 static void spiFlashReset(){
   unsigned char buf[1];
   buf[0] = 0x66;
@@ -469,10 +472,30 @@ static void spiFlashWakeUp() {
   nrf_delay_us(50); // datasheet tRES2 period > 20us  CS remains high
 }
 
+#endif
+
+
 #ifdef SPIFLASH_SLEEP_CMD
 /// Is SPI flash awake?
 bool spiFlashAwake = false;
 
+static void spiFlashWakeUp() {
+  /*unsigned char buf[4];
+  int tries = 10;
+  do {
+    buf[0] = 0xAB;
+    buf[1] = 0x00; // dummy
+    buf[2] = 0x00; // dummy
+    buf[3] = 0x00; // dummy
+    nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+    spiFlashWrite(buf,4);
+    spiFlashRead(buf,3);
+    nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+  } while (buf[0] != 0x15 && buf[1] != 0x15 && buf[2] != 0x15 && tries--);*/
+  unsigned char buf[1];
+  buf[0] = 0xAB;
+  spiFlashWriteCS(buf,1);
+}
 void spiFlashSleep() {
   if (spiFlashLastAddress) {
     nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
@@ -484,7 +507,6 @@ void spiFlashSleep() {
 }
 #endif
 #endif
-
 
 
 const nrf_drv_twi_t *jshGetTWI(IOEventFlags device) {
@@ -669,7 +691,7 @@ void jshResetPeripherals() {
 #endif
   spiFlashLastAddress = 0;
   jshDelayMicroseconds(100);
-#ifndef SPIFLASH_PIN_RST
+#if defined(SMAQ3) && !defined(SPIFLASH_SLEEP_CMD)
   spiFlashReset();   // SW reset
   spiFlashWakeUp();
   spiFlashWakeUp();
