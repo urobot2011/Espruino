@@ -292,7 +292,7 @@ volatile bool nrf_analog_read_interrupted = false;
 #define SPI_MAXAMT 65535
 #endif
 
-#ifdef NRF52840
+#ifdef ESPR_USE_SPI3
 static nrf_drv_spi_t spi0 = NRF_DRV_SPI_INSTANCE(3); // USE SPI3 on 52840 as it's far more complete
 #else
 static nrf_drv_spi_t spi0 = NRF_DRV_SPI_INSTANCE(0);
@@ -417,13 +417,13 @@ anyway because we're always expecting to have read something.  */
 uint32_t spiFlashLastAddress = 0;
 /// Read data while sending 0
 static void spiFlashRead(unsigned char *rx, unsigned int len) {
-  nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_MOSI].pin);
+  NRF_GPIO_PIN_CLEAR_FAST((uint32_t)pinInfo[SPIFLASH_PIN_MOSI].pin);
   for (unsigned int i=0;i<len;i++) {
     int result = 0;
     for (int bit=0;bit<8;bit++) {
-      nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
-      result = (result<<1) | nrf_gpio_pin_read((uint32_t)pinInfo[SPIFLASH_PIN_MISO].pin);
-      nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
+      NRF_GPIO_PIN_SET_FAST((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
+      result = (result<<1) | NRF_GPIO_PIN_READ_FAST((uint32_t)pinInfo[SPIFLASH_PIN_MISO].pin);
+      NRF_GPIO_PIN_CLEAR_FAST((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
     }
     rx[i] = result;
   }
@@ -433,25 +433,27 @@ static void spiFlashWrite(unsigned char *tx, unsigned int len) {
   for (unsigned int i=0;i<len;i++) {
     int data = tx[i];
     for (int bit=7;bit>=0;bit--) {
-      nrf_gpio_pin_write((uint32_t)pinInfo[SPIFLASH_PIN_MOSI].pin, (data>>bit)&1 );
-      nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
-      nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
+      NRF_GPIO_PIN_WRITE_FAST((uint32_t)pinInfo[SPIFLASH_PIN_MOSI].pin, (data>>bit)&1 );
+      NRF_GPIO_PIN_SET_FAST((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
+      NRF_GPIO_PIN_CLEAR_FAST((uint32_t)pinInfo[SPIFLASH_PIN_SCK].pin);
     }
   }
 }
 static void spiFlashWriteCS(unsigned char *tx, unsigned int len) {
-  nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+  NRF_GPIO_PIN_CLEAR_FAST((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
   spiFlashWrite(tx,len);
   nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
 }
 static unsigned char spiFlashStatus() {
   unsigned char buf = 5;
-  nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+  NRF_GPIO_PIN_CLEAR_FAST((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
   spiFlashWrite(&buf, 1);
   spiFlashRead(&buf, 1);
-  nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+  NRF_GPIO_PIN_SET_FAST((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
   return buf;
 }
+
+#if defined(SMAQ3) && !defined(SPIFLASH_SLEEP_CMD)
 
 static void spiFlashReset(){
   unsigned char buf[1];
@@ -469,13 +471,27 @@ static void spiFlashWakeUp() {
   nrf_delay_us(50); // datasheet tRES2 period > 20us  CS remains high
 }
 
+#endif
+
+
+#ifdef SPIFLASH_SLEEP_CMD
+/// Is SPI flash awake?
+bool spiFlashAwake = false;
+
+static void spiFlashWakeUp() {
+  unsigned char buf[1];
+  buf[0] = 0xAB;
+  spiFlashWriteCS(buf,1);
+  nrf_delay_us(50); // datasheet tRES2 period > 20us  CS remains high
+}
+
 #ifdef SPIFLASH_SLEEP_CMD
 /// Is SPI flash awake?
 bool spiFlashAwake = false;
 
 void spiFlashSleep() {
   if (spiFlashLastAddress) {
-    nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+    NRF_GPIO_PIN_SET_FAST((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
     spiFlashLastAddress = 0;
   }
   unsigned char buf[1];
@@ -669,8 +685,8 @@ void jshResetPeripherals() {
 #endif
   spiFlashLastAddress = 0;
   jshDelayMicroseconds(100);
-#ifndef SPIFLASH_PIN_RST
-  spiFlashReset();   // SW reset
+#if defined(SMAQ3) && !defined(SPIFLASH_SLEEP_CMD)
+  spiFlashReset(); //SW reset
   spiFlashWakeUp();
   spiFlashWakeUp();
   spiFlashWakeUp();
@@ -704,9 +720,11 @@ void jshInit() {
   // seems to be valid (RTC1 will be 0 at this point)
   if (lastSystemTime == ~lastSystemTimeInv) {
     baseSystemTime += (JsSysTime)(lastSystemTime << RTC_SHIFT);
-    lastSystemTime = 0;
-    lastSystemTimeInv = ~lastSystemTime;
+  } else {
+    baseSystemTime = 0;
   }
+  lastSystemTime = 0;
+  lastSystemTimeInv = ~lastSystemTime;
 
   memset(pinStates, 0, sizeof(pinStates));
 
@@ -1760,7 +1778,7 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
     freq = SPI_FREQUENCY_FREQUENCY_M2;
   else if (inf->baudRate<((4000000+8000000)/2))
     freq = SPI_FREQUENCY_FREQUENCY_M4;
-#ifdef NRF52840
+#ifdef ESPR_USE_SPI3
   // NRF52840 supports >8MHz but ONLY on SPIM3
   else if (inf->baudRate>((16000000+32000000)/2) && spi0.inst_idx==3)
     freq = SPIM_FREQUENCY_FREQUENCY_M32;
