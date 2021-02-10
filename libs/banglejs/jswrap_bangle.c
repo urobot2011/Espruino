@@ -622,7 +622,7 @@ void jswrap_banglejs_pwrBacklight(bool on) {
 #ifdef BANGLEJS_F18
   jswrap_banglejs_ioWr(IOEXP_LCD_BACKLIGHT, !on);
 #endif
-#if defined(LCD_BL) && !defined(SMAQ3)
+#if defined(LCD_BL) //&& !defined(SMAQ3)
   jshPinOutput(LCD_BL, on);
 #endif
 }
@@ -1273,7 +1273,7 @@ When brightness using `Bange.setLCDBrightness`.
 */
 void jswrap_banglejs_setLCDPower(bool isOn) {
 #ifdef LCD_CONTROLLER_LPM013M126
-  jshPinSetState(LCD_DISP, isOn);  // only turn on and off backlight for always on display
+//  jshPinSetState(LCD_DISP, isOn);  // only turn on and off backlight for always on display
 #endif
 #ifdef LCD_CONTROLLER_ST7789_8BIT
   if (isOn) { // wake
