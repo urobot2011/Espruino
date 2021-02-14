@@ -1955,10 +1955,10 @@ bool jswrap_banglejs_setBarometerPower(bool isOn, JsVar *appId) {
     buf[0] = 0x88; jsi2cWrite(PRESSURE_I2C, PRESSURE_ADDR, 1, buf, true);
     jsi2cRead(PRESSURE_I2C, PRESSURE_ADDR, 24, buf, true);
     int i;
-    barometerDT[0] = ((int)buf[1] << 8) | (int)buf[0];
+    barometerDT[0] = ((int)buf[1] << 8) | (int)buf[0];  //first coeff is unsigned
     for (i=1;i<3;i++)
       barometerDT[i] = twosComplement(((int)buf[(i*2)+1] << 8) | (int)buf[i*2], 16);
-    barometerDP[0] = ((int)buf[7] << 8) | (int)buf[6];
+    barometerDP[0] = ((int)buf[7] << 8) | (int)buf[6];  //first coeff is unsigned
     for (i=1;i<9;i++)
       barometerDP[i] = twosComplement(((int)buf[(i*2)+7] << 8) | (int)buf[(i*2)+6], 16);
 #endif
@@ -3212,6 +3212,7 @@ bool jswrap_banglejs_barometerPoll() {
     var1 = ((double)barometerDP[8]) * (barometerPressure) * (barometerPressure) / 2147483648.0;
     var2 = (barometerPressure) * ((double)barometerDP[7]) / 32768.0;
     barometerPressure = barometerPressure + (var1 + var2 + ((double)barometerDP[6])) / 16.0;
+    barometerPressure = barometerPressure/100.0;
   } else {
     barometerPressure = 0;
   }
