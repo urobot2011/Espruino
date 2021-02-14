@@ -1948,7 +1948,7 @@ bool jswrap_banglejs_setBarometerPower(bool isOn, JsVar *appId) {
     barometer_c30 = twosComplement(((unsigned short)buf[16] << 8) | (unsigned short)buf[17], 16);
 #endif
 #ifdef PRESSURE_DEVICE_BMP280
-    jswrap_banglejs_barometerWr(0xF4, 0x24); // ctrl_meas_reg - normal mode, no pressure/temp oversample
+    jswrap_banglejs_barometerWr(0xF4, 0x27); // ctrl_meas_reg - normal mode, no pressure/temp oversample
     jswrap_banglejs_barometerWr(0xF5, 0xA0); // config_reg - 1s standby, no filter, I2C
     // read calibration data
     unsigned char buf[24];
