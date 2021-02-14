@@ -1955,9 +1955,11 @@ bool jswrap_banglejs_setBarometerPower(bool isOn, JsVar *appId) {
     buf[0] = 0x88; jsi2cWrite(PRESSURE_I2C, PRESSURE_ADDR, 1, buf, true);
     jsi2cRead(PRESSURE_I2C, PRESSURE_ADDR, 24, buf, true);
     int i;
-    for (i=0;i<3;i++)
+    barometerDT[0] = ((int)buf[1] << 8) | (int)buf[0];
+    for (i=1;i<3;i++)
       barometerDT[i] = twosComplement(((int)buf[(i*2)+1] << 8) | (int)buf[i*2], 16);
-    for (i=0;i<9;i++)
+    barometerDP[0] = ((int)buf[7] << 8) | (int)buf[6];
+    for (i=1;i<9;i++)
       barometerDP[i] = twosComplement(((int)buf[(i*2)+7] << 8) | (int)buf[(i*2)+6], 16);
 #endif
   } else {
