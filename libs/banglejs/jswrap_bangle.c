@@ -796,7 +796,7 @@ void peripheralPollHandler() {
     buf[0]=0x4E;
     jsi2cWrite(MAG_I2C, MAG_ADDR, 1, buf, true);
     jsi2cRead(MAG_I2C, MAG_ADDR, 7, buf, true);
-    if (!(buf[0]&16)) { // then we have data that wasn't read before
+//    if (!(buf[0]&16)) { // then we have data that wasn't read before
       // &2 seems always set
       // &16 seems set if we read twice
       // &32 might be reading in progress
@@ -808,7 +808,7 @@ void peripheralPollHandler() {
       jsi2cWrite(MAG_I2C, MAG_ADDR, 1, buf, true);
       jsi2cRead(MAG_I2C, MAG_ADDR, 1, buf, true);
       newReading = true;
-    }
+//    }
 #endif
     if (newReading) {
       if (mag.x<magmin.x) magmin.x=mag.x;
