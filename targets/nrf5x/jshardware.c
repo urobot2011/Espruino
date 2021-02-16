@@ -485,10 +485,6 @@ static void spiFlashWakeUp() {
   nrf_delay_us(50); // datasheet tRES2 period > 20us  CS remains high
 }
 
-#ifdef SPIFLASH_SLEEP_CMD
-/// Is SPI flash awake?
-bool spiFlashAwake = false;
-
 void spiFlashSleep() {
   if (spiFlashLastAddress) {
     NRF_GPIO_PIN_SET_FAST((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
