@@ -691,8 +691,8 @@ void jshResetPeripherals() {
   spiFlashLastAddress = 0;
   jshDelayMicroseconds(100);
 #if defined(SMAQ3) && !defined(SPIFLASH_SLEEP_CMD)
-  spiFlashReset(); //SW reset
-  spiFlashWakeUp();
+  spiFlashReset();  //SW reset
+  spiFlashWakeUp(); // make sure of wakeup
   spiFlashWakeUp();
   spiFlashWakeUp();
 #endif

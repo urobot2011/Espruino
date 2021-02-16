@@ -414,8 +414,8 @@ short barometer_c0, barometer_c1, barometer_c01, barometer_c11, barometer_c20, b
 int barometer_c00, barometer_c10;
 #endif
 #ifdef PRESSURE_DEVICE_BMP280
-int barometerDT[3]; // temp calibration
-int barometerDP[9]; // pressure calibration
+int barometerDT[3]; // temp calibration - first value unsigned 16 bit the rest signed 16 bit
+int barometerDP[9]; // pressure calibration - first value unsigned 16 bit the rest signed 16 bit
 #endif
 
 /// Promise when pressure is requested
