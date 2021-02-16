@@ -37,7 +37,8 @@ info = {
    ],
    'makefile' : [
 #     'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
-     'DEFINES += -DCONFIG_NFCT_PINS_AS_GPIOS', # Allow the reset pin to work
+     'DEFINES += -DCONFIG_NFCT_PINS_AS_GPIOS', # Allow us to use NFC pins as GPIO
+     'DEFINES += -DESPR_LSE_ENABLE ', # Ensure low speed external osc enabled
      'DEFINES += -DBUTTONPRESS_TO_REBOOT_BOOTLOADER',
      'DEFINES += -DNRF_BL_DFU_ENTER_METHOD_BUTTON=1 -DNRF_BL_DFU_ENTER_METHOD_BUTTON_PIN=17',
      'DEFINES += -DBUTTONPRESS_TO_REBOOT_BOOTLOADER',
@@ -82,7 +83,7 @@ chip = {
   'address' : 0x60000000, # put this in external spiflash (see below)
   'page_size' : 4096,
   'pages' : 2048, # Entire 8MB of external flash
-  'flash_available' : 1024 - ((38 + 8 + 2)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+  'flash_available' : 1024 - ((31 + 8 + 2)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
   },
 };
 

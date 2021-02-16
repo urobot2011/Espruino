@@ -622,7 +622,7 @@ void jswrap_banglejs_pwrBacklight(bool on) {
 #ifdef BANGLEJS_F18
   jswrap_banglejs_ioWr(IOEXP_LCD_BACKLIGHT, !on);
 #endif
-#if defined(LCD_BL) //&& !defined(SMAQ3)
+#if defined(LCD_BL) && !defined(SMAQ3)
   jshPinOutput(LCD_BL, on);
 #endif
 }
@@ -644,12 +644,10 @@ void lcd_flip(JsVar *parent, bool all) {
     gfx.data.modMaxX = LCD_WIDTH-1;
     gfx.data.modMaxY = LCD_HEIGHT-1;
   }
-#ifndef LCD_CONTROLLER_LPM013M126
   if (lcdPowerTimeout && !lcdPowerOn) {
     // LCD was turned off, turn it back on
     jswrap_banglejs_setLCDPower(1);
   }
-#endif
   flipTimer = 0;
 
 #ifdef LCD_CONTROLLER_LPM013M126
@@ -1275,7 +1273,7 @@ When brightness using `Bange.setLCDBrightness`.
 */
 void jswrap_banglejs_setLCDPower(bool isOn) {
 #ifdef LCD_CONTROLLER_LPM013M126
-//  jshPinSetState(LCD_DISP, isOn);  // only turn on and off backlight for always on display
+  jshPinSetState(LCD_DISP, isOn);  // only turn on and off backlight for always on display
 #endif
 #ifdef LCD_CONTROLLER_ST7789_8BIT
   if (isOn) { // wake
@@ -2802,7 +2800,7 @@ bool jswrap_banglejs_idle() {
 #endif
 #ifdef LCD_CONTROLLER_LPM013M126
   // toggle EXTCOMIN to avoid burn-in
-// if (lcdPowerOn)
+  if (lcdPowerOn)
     lcdMemLCD_extcomin();
 #endif
 

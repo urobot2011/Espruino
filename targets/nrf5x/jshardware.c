@@ -292,7 +292,7 @@ volatile bool nrf_analog_read_interrupted = false;
 #define SPI_MAXAMT 65535
 #endif
 
-#ifdef NRF52840
+#ifdef ESPR_USE_SPI3
 static nrf_drv_spi_t spi0 = NRF_DRV_SPI_INSTANCE(3); // USE SPI3 on 52840 as it's far more complete
 #else
 static nrf_drv_spi_t spi0 = NRF_DRV_SPI_INSTANCE(0);
@@ -479,22 +479,16 @@ static void spiFlashWakeUp() {
 bool spiFlashAwake = false;
 
 static void spiFlashWakeUp() {
-  /*unsigned char buf[4];
-  int tries = 10;
-  do {
-    buf[0] = 0xAB;
-    buf[1] = 0x00; // dummy
-    buf[2] = 0x00; // dummy
-    buf[3] = 0x00; // dummy
-    nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-    spiFlashWrite(buf,4);
-    spiFlashRead(buf,3);
-    nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-  } while (buf[0] != 0x15 && buf[1] != 0x15 && buf[2] != 0x15 && tries--);*/
   unsigned char buf[1];
   buf[0] = 0xAB;
   spiFlashWriteCS(buf,1);
+  nrf_delay_us(50); // datasheet tRES2 period > 20us  CS remains high
 }
+
+#ifdef SPIFLASH_SLEEP_CMD
+/// Is SPI flash awake?
+bool spiFlashAwake = false;
+
 void spiFlashSleep() {
   if (spiFlashLastAddress) {
     NRF_GPIO_PIN_SET_FAST((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
@@ -506,6 +500,7 @@ void spiFlashSleep() {
 }
 #endif
 #endif
+
 
 
 const nrf_drv_twi_t *jshGetTWI(IOEventFlags device) {
@@ -725,9 +720,11 @@ void jshInit() {
   // seems to be valid (RTC1 will be 0 at this point)
   if (lastSystemTime == ~lastSystemTimeInv) {
     baseSystemTime += (JsSysTime)(lastSystemTime << RTC_SHIFT);
-    lastSystemTime = 0;
-    lastSystemTimeInv = ~lastSystemTime;
+  } else {
+    baseSystemTime = 0;
   }
+  lastSystemTime = 0;
+  lastSystemTimeInv = ~lastSystemTime;
 
   memset(pinStates, 0, sizeof(pinStates));
 
@@ -1781,7 +1778,7 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
     freq = SPI_FREQUENCY_FREQUENCY_M2;
   else if (inf->baudRate<((4000000+8000000)/2))
     freq = SPI_FREQUENCY_FREQUENCY_M4;
-#ifdef NRF52840
+#ifdef ESPR_USE_SPI3
   // NRF52840 supports >8MHz but ONLY on SPIM3
   else if (inf->baudRate>((16000000+32000000)/2) && spi0.inst_idx==3)
     freq = SPIM_FREQUENCY_FREQUENCY_M32;
