@@ -1178,6 +1178,7 @@ void touchHandler(bool state, IOEventFlags flags) {
   static unsigned char lastx, lasty;
   static bool lastTouch;
   if (gesture!=lastGesture) {
+    flipTimer=0;
     IOEvent evt;
     switch (gesture) { // gesture
     case 0:break; // no gesture
