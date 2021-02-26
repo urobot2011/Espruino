@@ -1825,7 +1825,22 @@ JsVar *jswrap_graphics_fillPoly_X(JsVar *parent, JsVar *poly, bool antiAlias) {
   if (jsvIteratorHasElement(&it))
     jsExceptionHere(JSET_ERROR, "Maximum number of points (%d) exceeded for fillPoly", maxVerts/2);
   jsvIteratorFree(&it);
-  graphicsFillPoly(&gfx, idx/2, verts, antiAlias);
+#ifdef GRAPHICS_ANTIALIAS
+  // For antialiased fillPoly the easiest solution is just to draw AA lines
+  // around the edge first, then fill solidly
+  if (antiAlias) {
+    int lx = verts[idx-2];
+    int ly = verts[idx-1];
+    for (int i=0;i<idx;i+=2) {
+      int vx = verts[i];
+      int vy = verts[i+1];
+      graphicsDrawLineAA(&gfx, vx,vy, lx,ly);
+      lx = vx;
+      ly = vy;
+    }
+  }
+#endif
+  graphicsFillPoly(&gfx, idx/2, verts);
 
   graphicsSetVar(&gfx); // gfx data changed because modified area
   return jsvLockAgain(parent);
@@ -2211,7 +2226,7 @@ JsVar *jswrap_graphics_drawImage(JsVar *parent, JsVar *image, int xPos, int yPos
 #ifdef USE_LCD_ST7789_8BIT // can we blit directly to the display?
     if (isST7789 &&
         xPos>=gfx.data.clipRect.x1 && yPos>=gfx.data.clipRect.y1 && // check it's all on-screen
-        (xPos+img.width)<=gfx.data.clipRect.x2 && (yPos+img.height)<=gfx.data.clipRect.y2) {
+        (xPos+img.width)<=gfx.data.clipRect.x2+1 && (yPos+img.height)<=gfx.data.clipRect.y2+1) {
       if (img.bpp==1) lcdST7789_blit1Bit(xPos, yPos, img.width, img.height, 1, &it, img.palettePtr);
       else if (img.bpp==8) lcdST7789_blit8Bit(xPos, yPos, img.width, img.height, 1, &it, img.palettePtr);
     } else {
@@ -2265,7 +2280,7 @@ JsVar *jswrap_graphics_drawImage(JsVar *parent, JsVar *image, int xPos, int yPos
       if (isST7789 &&
           s>=1 &&
           xPos>=gfx.data.clipRect.x1 && yPos>=gfx.data.clipRect.y1 && // check it's all on-screen
-          (xPos+img.width*s)<=gfx.data.clipRect.x2 && (yPos+img.height*s)<=gfx.data.clipRect.y2) {
+          (xPos+img.width*s)<=gfx.data.clipRect.x2+1 && (yPos+img.height*s)<=gfx.data.clipRect.y2+1) {
         if (img.bpp==1) lcdST7789_blit1Bit(xPos, yPos, img.width, img.height, s, &it, img.palettePtr);
         else lcdST7789_blit8Bit(xPos, yPos, img.width, img.height, s, &it, img.palettePtr);
       } else

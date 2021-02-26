@@ -414,8 +414,8 @@ short barometer_c0, barometer_c1, barometer_c01, barometer_c11, barometer_c20, b
 int barometer_c00, barometer_c10;
 #endif
 #ifdef PRESSURE_DEVICE_BMP280
-int barometerDT[3]; // temp calibration - first value unsigned 16 bit the rest signed 16 bit
-int barometerDP[9]; // pressure calibration - first value unsigned 16 bit the rest signed 16 bit
+int barometerDT[3]; // temp calibration
+int barometerDP[9]; // pressure calibration
 #endif
 
 /// Promise when pressure is requested
@@ -649,6 +649,7 @@ void lcd_flip(JsVar *parent, bool all) {
     // LCD was turned off, turn it back on
     jswrap_banglejs_setLCDPower(1);
   }
+#endif
   flipTimer = 0;
 #endif
 
@@ -1276,7 +1277,6 @@ When brightness using `Bange.setLCDBrightness`.
 */
 void jswrap_banglejs_setLCDPower(bool isOn) {
 #ifdef LCD_CONTROLLER_LPM013M126
-  //jshPinSetState(LCD_DISP, isOn);  // only turn on and off backlight for always on display
 #endif
 #ifdef LCD_CONTROLLER_ST7789_8BIT
   if (isOn) { // wake
@@ -1386,6 +1386,38 @@ You can also call `Bangle.setLCDMode()` to return to normal, unbuffered `"direct
 */
 void jswrap_banglejs_setLCDMode(JsVar *mode) {
 #ifdef LCD_CONTROLLER_LPM013M126
+  lcdMemLCDMode lcdMode = MEMLCD_MODE_NORMAL;
+  if (jsvIsUndefined(mode) || jsvIsStringEqual(mode,"direct"))
+    lcdMode =  MEMLCD_MODE_NORMAL;
+  else if (jsvIsStringEqual(mode,"null"))
+    lcdMode = MEMLCD_MODE_NULL;
+  else if (jsvIsStringEqual(mode,"240x240"))
+    lcdMode = MEMLCD_MODE_240x240;
+  else
+    jsExceptionHere(JSET_ERROR,"Unknown LCD Mode %j",mode);
+  JsVar *graphics = jsvObjectGetChild(execInfo.hiddenRoot, JS_GRAPHICS_VAR, 0);
+  if (!graphics) return;
+  jswrap_graphics_setFont(graphics, NULL, 1); // reset fonts - this will free any memory associated with a custom font
+  JsGraphics gfx;
+  if (!graphicsGetFromVar(&gfx, graphics)) return;
+  unsigned int bufferSize = 0;
+  switch (lcdMode) {
+    case MEMLCD_MODE_NULL:
+    case MEMLCD_MODE_NORMAL:
+      gfx.data.width = LCD_WIDTH;
+      gfx.data.height = LCD_HEIGHT;
+      gfx.data.bpp = LCD_BPP;
+      break;
+    case MEMLCD_MODE_240x240:
+      gfx.data.width = 240;
+      gfx.data.height = 240;
+      gfx.data.bpp = 16;
+      break;
+  }
+  graphicsStructResetState(&gfx); // reset colour, cliprect, etc
+  graphicsSetVar(&gfx);
+  jsvUnLock(graphics);
+  lcdMemLCD_setMode(lcdMode);
 #endif
 #ifdef LCD_CONTROLLER_ST7789_8BIT
   LCDST7789Mode lcdMode = LCDST7789_MODE_UNBUFFERED;

@@ -139,7 +139,7 @@ devices = {
           },
   'PRESSURE' : {
             'device' : 'BMP280', 
-            'addr'   :  0x76,
+            'addr' : 0x76,
             'pin_sda' : 'D47',
             'pin_scl' : 'D2'            
   },
