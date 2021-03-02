@@ -649,7 +649,6 @@ void lcd_flip(JsVar *parent, bool all) {
     // LCD was turned off, turn it back on
     jswrap_banglejs_setLCDPower(1);
   }
-#endif
   flipTimer = 0;
 #endif
 
