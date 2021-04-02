@@ -2497,10 +2497,13 @@ void jswrap_banglejs_kill() {
 #endif
 
 #ifdef SMAQ3
+  jshPinWatch(BTN1_PININDEX, false);
   jshSetPinShouldStayWatched(BTN1_PININDEX,false);
+  jshPinWatch(TOUCH_PIN_IRQ, false);
+  jshSetPinShouldStayWatched(TOUCH_PIN_IRQ,false);
   //jshSetPinShouldStayWatched(FAKE_BTN1_PIN,false);
   //jshSetPinShouldStayWatched(FAKE_BTN3_PIN,false);
- // jshPinWatch(FAKE_BTN1_PIN, false);
+  // jshPinWatch(FAKE_BTN1_PIN, false);
   //jshPinWatch(FAKE_BTN3_PIN, false);
 #else
   jshPinWatch(BTN1_PININDEX, false);

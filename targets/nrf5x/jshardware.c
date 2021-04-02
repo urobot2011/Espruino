@@ -1580,9 +1580,11 @@ IOEventFlags jshPinWatch(Pin pin, bool shouldWatch) {
     return EV_NONE;
   } else {
     for (int i=0;i<EXTI_COUNT;i++)
-      if (extiToPin[i] == p)
+      if (extiToPin[i] == p) {
         extiToPin[i] = PIN_UNDEFINED;
-    nrf_drv_gpiote_in_event_disable(p);
+        nrf_drv_gpiote_in_event_disable(p);
+        nrf_drv_gpiote_in_uninit(p);
+      }
     return EV_NONE;
   }
 } // start watching pin - return the EXTI associated with it
