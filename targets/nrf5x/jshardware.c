@@ -1567,7 +1567,8 @@ IOEventFlags jshPinWatch(Pin pin, bool shouldWatch) {
     // use low accuracy for GPIOTE as we can shut down the high speed oscillator then
     nrf_drv_gpiote_in_config_t cls_1_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(false /* hi/low accuracy */);
     cls_1_config.is_watcher = true; // stop this resetting the input state
-    nrf_drv_gpiote_in_init(p, &cls_1_config, jsvPinWatchHandler);
+    if (nrf_drv_gpiote_in_init(p, &cls_1_config, jsvPinWatchHandler)!=0)
+      jsWarn("No free GPIOTE for watch");
     nrf_drv_gpiote_in_event_enable(p, true);
     // allocate an 'EXTI'
     for (int i=0;i<EXTI_COUNT;i++) {
