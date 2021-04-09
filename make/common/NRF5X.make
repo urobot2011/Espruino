@@ -68,7 +68,8 @@ ifdef NRF5X_SDK_12
     targets/nrf5x_dfu/sdk12/dfu-cc.pb.c \
     targets/nrf5x_dfu/sdk12/dfu_req_handling.c 
 endif
-else
+else # no BOOTLOADER
+  DEFINES += -DUSE_APP_CONFIG
   SOURCES +=                              \
     targets/nrf5x/main.c                    \
     targets/nrf5x/jshardware.c              \
