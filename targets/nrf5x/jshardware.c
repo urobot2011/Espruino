@@ -1063,9 +1063,12 @@ void jshPinSetState(Pin pin, JshPinState state) {
 #else
   NRF_GPIO_Type *reg = NRF_GPIO;
 #endif
+  // get original state of pin sensing
+  uint32_t sense = reg->PIN_CNF[ipin] & GPIO_PIN_CNF_SENSE_Msk;
+  // actually set pin config
   switch (state) {
     case JSHPINSTATE_UNDEFINED :
-    case JSHPINSTATE_ADC_IN :
+    case JSHPINSTATE_ADC_IN : // disable sense for undefined/ADC
       reg->PIN_CNF[ipin] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
                               | (GPIO_PIN_CNF_DRIVE_S0S1 << GPIO_PIN_CNF_DRIVE_Pos)
                               | (GPIO_PIN_CNF_PULL_Disabled << GPIO_PIN_CNF_PULL_Pos)
@@ -1074,7 +1077,7 @@ void jshPinSetState(Pin pin, JshPinState state) {
       break;
     case JSHPINSTATE_AF_OUT :
     case JSHPINSTATE_GPIO_OUT :
-    case JSHPINSTATE_USART_OUT :
+    case JSHPINSTATE_USART_OUT : // disable sense for output modes
       reg->PIN_CNF[ipin] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
                               | (GPIO_PIN_CNF_DRIVE_H0H1 << GPIO_PIN_CNF_DRIVE_Pos)
                               | (GPIO_PIN_CNF_PULL_Disabled << GPIO_PIN_CNF_PULL_Pos)
@@ -1082,7 +1085,7 @@ void jshPinSetState(Pin pin, JshPinState state) {
                               | (GPIO_PIN_CNF_DIR_Output << GPIO_PIN_CNF_DIR_Pos);
       break;
     case JSHPINSTATE_AF_OUT_OPENDRAIN :
-    case JSHPINSTATE_GPIO_OUT_OPENDRAIN :
+    case JSHPINSTATE_GPIO_OUT_OPENDRAIN : // disable sense for output modes
       reg->PIN_CNF[ipin] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
                               | (GPIO_PIN_CNF_DRIVE_H0D1 << GPIO_PIN_CNF_DRIVE_Pos)
                               | (GPIO_PIN_CNF_PULL_Disabled << GPIO_PIN_CNF_PULL_Pos)
@@ -1090,7 +1093,7 @@ void jshPinSetState(Pin pin, JshPinState state) {
                               | (GPIO_PIN_CNF_DIR_Output << GPIO_PIN_CNF_DIR_Pos);
       break;
     case JSHPINSTATE_I2C :
-    case JSHPINSTATE_GPIO_OUT_OPENDRAIN_PULLUP:
+    case JSHPINSTATE_GPIO_OUT_OPENDRAIN_PULLUP: // disable sense for output modes
       reg->PIN_CNF[ipin] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
                               | (GPIO_PIN_CNF_DRIVE_H0D1 << GPIO_PIN_CNF_DRIVE_Pos)
                               | (GPIO_PIN_CNF_PULL_Pullup << GPIO_PIN_CNF_PULL_Pos)
@@ -1099,21 +1102,21 @@ void jshPinSetState(Pin pin, JshPinState state) {
       break;
     case JSHPINSTATE_GPIO_IN :
     case JSHPINSTATE_USART_IN :
-      reg->PIN_CNF[ipin] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
+      reg->PIN_CNF[ipin] = sense
                               | (GPIO_PIN_CNF_DRIVE_S0S1 << GPIO_PIN_CNF_DRIVE_Pos)
                               | (GPIO_PIN_CNF_PULL_Disabled << GPIO_PIN_CNF_PULL_Pos)
                               | (GPIO_PIN_CNF_INPUT_Connect << GPIO_PIN_CNF_INPUT_Pos)
                               | (GPIO_PIN_CNF_DIR_Input << GPIO_PIN_CNF_DIR_Pos);
       break;
     case JSHPINSTATE_GPIO_IN_PULLUP :
-      reg->PIN_CNF[ipin] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
+      reg->PIN_CNF[ipin] = sense
                                     | (GPIO_PIN_CNF_DRIVE_S0S1 << GPIO_PIN_CNF_DRIVE_Pos)
                                     | (GPIO_PIN_CNF_PULL_Pullup << GPIO_PIN_CNF_PULL_Pos)
                                     | (GPIO_PIN_CNF_INPUT_Connect << GPIO_PIN_CNF_INPUT_Pos)
                                     | (GPIO_PIN_CNF_DIR_Input << GPIO_PIN_CNF_DIR_Pos);
       break;
     case JSHPINSTATE_GPIO_IN_PULLDOWN :
-      reg->PIN_CNF[ipin] = (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos)
+      reg->PIN_CNF[ipin] = sense
                                     | (GPIO_PIN_CNF_DRIVE_S0S1 << GPIO_PIN_CNF_DRIVE_Pos)
                                     | (GPIO_PIN_CNF_PULL_Pulldown << GPIO_PIN_CNF_PULL_Pos)
                                     | (GPIO_PIN_CNF_INPUT_Connect << GPIO_PIN_CNF_INPUT_Pos)
@@ -1571,11 +1574,13 @@ IOEventFlags jshPinWatch(Pin pin, bool shouldWatch) {
         // use low accuracy for GPIOTE as we can shut down the high speed oscillator then
        nrf_drv_gpiote_in_config_t cls_1_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(false /* hi/low accuracy */);
        cls_1_config.is_watcher = true; // stop this resetting the input state
-       if (nrf_drv_gpiote_in_init(p, &cls_1_config, jsvPinWatchHandler)!=0)
-          jsWarn("No free GPIOTE for watch");
-        nrf_drv_gpiote_in_event_enable(p, true);
-        extiToPin[i] = p;
-        return EV_EXTI0+i;
+       if (nrf_drv_gpiote_in_init(p, &cls_1_config, jsvPinWatchHandler)!=0) {
+         jsWarn("No free GPIOTE for watch");
+         return EV_NONE;
+       }
+       nrf_drv_gpiote_in_event_enable(p, true);
+       extiToPin[i] = p;
+       return EV_EXTI0+i;
       }
     }
     jsWarn("No free EXTI for watch");
