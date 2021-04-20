@@ -1,4 +1,4 @@
-            Bangle.js: increase default advertising interval from 375 to 200ms to ease connections
+     2v09 : Bangle.js: increase default advertising interval from 375 to 200ms to ease connections
             Fix Math.acos for negative values (fix #1950)
             nRF5x: Add callback param to 'NRF.restart', allowing code to be called with softdevice disabled
             Bangle.js: fix require("locale").time(new Date()) for default locale
@@ -55,6 +55,11 @@
             nRF52: Use 'low accuracy' GPIOTE for watches as we can shut down the high speed oscillator
             E.getSizeOf() and trace() now don't recurse into references back to the global scope (makes sizes and traces far more useful)
             nRF5x: Move from separate sdk_config.h to a single targets/nrf5x/app_config.h file
+            Original board: Remove Graphics.*Ellipse and StorageFile when networking enabled to allow builds
+            Update S132 Softdevice from 3.0.0 to 3.1.0 (fix #1999)
+            nRF5x: Allow Espruino builds with a configurable MTU - move Espruino boards to 53 byte (from 23) (#1998)
+            Fix issue parsing `r=>print((e=>{})(r))` (fix #1992)
+            Add DHE RSA key exchange for TLS/HTTPS (fix #1994)
  
      2v08 : nRF52: Added option to build in I2C slave support
             Fix Tensorflow aiGesture regression from 2v07 (re-add opcodes) (fix #1936)
