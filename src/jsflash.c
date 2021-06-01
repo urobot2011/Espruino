@@ -569,6 +569,18 @@ bool jsfIsStorageValid() {
   return allFF;
 }
 
+/** Return true if there is nothing at all in Storage (first header on first page is all 0xFF) */
+bool jsfIsStorageEmpty() {
+  uint32_t addr = JSF_START_ADDRESS;
+  JsfFileHeader header;
+  unsigned char *headerPtr = (unsigned char *)&header;
+  jsfGetFileHeader(addr, &header, true);
+  bool allFF = true;
+  for (size_t i=0;i<sizeof(JsfFileHeader);i++)
+    if (headerPtr[i]!=0xFF) allFF=false;
+  return allFF;
+}
+
 JsVar *jsfReadFile(JsfFileName name, int offset, int length) {
   JsfFileHeader header;
   uint32_t addr = jsfFindFile(name, &header);
@@ -864,8 +876,8 @@ JsVar *jsfGetBootCodeFromFlash(bool isReset) {
 }
 
 bool jsfLoadBootCodeFromFlash(bool isReset) {
-  // Load code in .boot0/1/2/3 UNLESS BTN1 is HELD DOWN
-#if defined (BANGLEJS) && !defined (SMAQ3)
+  // Load code in .boot0/1/2/3 UNLESS BTN1 is HELD DOWN FOR BANGLE.JS
+#if (defined(BANGLEJS) && !defined(DICKENS))
   if (jshPinGetValue(BTN1_PININDEX)!=BTN1_ONSTATE)
 #endif
   {

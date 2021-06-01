@@ -309,7 +309,8 @@ codeOut("");
 
 codeOut("#define CLOCK_SPEED_MHZ                      "+str(board.chip["speed"]))
 codeOut("#define USART_COUNT                          "+str(board.chip["usart"]))
-codeOut("#define SPI_COUNT                            "+str(board.chip["spi"]))
+if "spi" in board.chip:
+  codeOut("#define SPI_COUNT                            "+str(board.chip["spi"]))
 codeOut("#define I2C_COUNT                            "+str(board.chip["i2c"]))
 codeOut("#define ADC_COUNT                            "+str(board.chip["adc"]))
 codeOut("#define DAC_COUNT                            "+str(board.chip["dac"]))
@@ -408,6 +409,8 @@ if "LCD" in board.devices:
     codeOutDevicePin("LCD", "pin_extcomin", "LCD_EXTCOMIN")
   if "pin_miso" in board.devices["LCD"]:
     codeOutDevicePin("LCD", "pin_miso", "LCD_SPI_MISO")
+  if "pin_tearing" in board.devices["LCD"]:
+    codeOutDevicePin("LCD", "pin_tearing", "LCD_TEARING")
 
   if board.devices["LCD"]["controller"]=="st7789_8bit":
     codeOutDevicePins("LCD","LCD");
@@ -485,8 +488,7 @@ if "SPIFLASH" in board.devices:
   codeOut("#define SPIFLASH_BASE "+str(board.devices["SPIFLASH"]["memmap_base"])+"UL")
   codeOutDevicePins("SPIFLASH", "SPIFLASH")
 
-#for device in ["USB","SD","LCD","JTAG","ESP8266","IR","GPS","ACCEL","MAG","TEMP","PRESSURE","SPIFLASH"]:
-for device in ["USB","SD","LCD","JTAG","ESP8266","IR"]:
+for device in pinutils.OTHER_DEVICES:
   if device in board.devices:
     for entry in board.devices[device]:
       if entry[:3]=="pin": usedPinChecks.append("(PIN)==" + toPinDef(board.devices[device][entry])+"/* "+device+" */")

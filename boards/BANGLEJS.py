@@ -20,7 +20,7 @@ info = {
  'link' :  [ "http://www.espruino.com/Bangle.js" ],
  'espruino_page_link' : 'Bangle.js',
  'default_console' : "EV_BLUETOOTH",
- 'variables' : 2100, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
+ 'variables' : 2150, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
  'binary_name' : 'espruino_%v_banglejs.hex',
  'build' : {
@@ -41,16 +41,19 @@ info = {
      'LDFLAGS += -Xlinker --defsym=LD_APP_RAM_BASE=0x2c40', # set RAM base to match MTU
      'DEFINES+=-DBLUETOOTH_NAME_PREFIX=\'"Bangle.js"\'',
      'DEFINES+=-DBLUETOOTH_ADVERTISING_INTERVAL=200', # since we don't care as much about ~20uA battery usage, raise this to make getting a connection faster
+     # 'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
      'DEFINES+=-DCUSTOM_GETBATTERY=jswrap_banglejs_getBattery',
      'DEFINES+=-DDUMP_IGNORE_VARIABLES=\'"g\\0"\'',
      'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES -DGRAPHICS_ANTIALIAS',
      'DEFINES+=-DNO_DUMP_HARDWARE_INITIALISATION', # don't dump hardware init - not used and saves 1k of flash
-     'DEFINES+=-DAPP_TIMER_OP_QUEUE_SIZE=5', # Bangle.js accelerometer poll handler needs something else in queue size
+     'DEFINES+=-DAPP_TIMER_OP_QUEUE_SIZE=6', # Bangle.js accelerometer poll handler needs something else in queue size
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0x8C,0x91',
      'INCLUDE += -I$(ROOT)/libs/banglejs -I$(ROOT)/libs/misc',
      'WRAPPERSOURCES += libs/banglejs/jswrap_bangle.c',
      'SOURCES += libs/misc/nmea.c',
+     'SOURCES += libs/misc/stepcount.c',
+     'SOURCES += libs/misc/heartrate.c',
      'JSMODULESOURCES += libs/js/banglejs/locale.min.js',
      'NRF_BL_DFU_INSECURE=1',
      'LINKER_BOOTLOADER=targetlibs/nrf5x_12/nrf5x_linkers/banglejs_dfu.ld',
@@ -139,7 +142,11 @@ devices = {
             'pin_rst' : 'D17', # D3
             'size' : 4096*1024, # 4MB
             'memmap_base' : 0x60000000 # map into the address space (in software)
-          }
+          },
+  'MISC' : {
+    'pin_nenable' : 'D18', # needed to get power to Bangle.js peripherals
+    'pin_ioexp_reset' : 'D28',
+  }
 };
 
 # left-right, or top-bottom order

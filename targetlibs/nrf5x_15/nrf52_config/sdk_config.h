@@ -1993,7 +1993,7 @@
 // <e> UART1_ENABLED - Enable UART1 instance
 //==========================================================
 #ifndef UART1_ENABLED
-#define UART1_ENABLED 1
+#define UART1_ENABLED 0
 #endif
 // <q> UART1_CONFIG_USE_EASY_DMA  - Default setting for using EasyDMA
 
@@ -7631,7 +7631,7 @@
 // <11=> NRF_CLOCK_LF_ACCURACY_1_PPM 
 
 #ifndef NRF_SDH_CLOCK_LF_ACCURACY
-#define NRF_SDH_CLOCK_LF_ACCURACY 7
+#define NRF_SDH_CLOCK_LF_ACCURACY NRF_CLOCK_LF_ACCURACY_20_PPM
 #endif
 
 // </h>

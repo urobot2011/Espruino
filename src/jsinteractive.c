@@ -774,6 +774,7 @@ void jsiSoftKill() {
   }
   // If we're here we're loading, saving or resetting - board is no longer at power-on state
   jsiStatus &= ~JSIS_COMPLETELY_RESET; // loading code, remove this flag
+  jsiStatus &= ~JSIS_FIRST_BOOT; // this is no longer the first boot!
 }
 
 void jsiSemiInit(bool autoLoad) {
@@ -856,7 +857,7 @@ void jsiSemiInit(bool autoLoad) {
 
 // The 'proper' init function - this should be called only once at bootup
 void jsiInit(bool autoLoad) {
-  jsiStatus = JSIS_COMPLETELY_RESET;
+  jsiStatus = JSIS_COMPLETELY_RESET | JSIS_FIRST_BOOT;
 
 #if defined(LINUX) || !defined(USB)
   consoleDevice = jsiGetPreferredConsoleDevice();
@@ -1909,9 +1910,23 @@ void jsiIdle() {
     } else if ((eventType == EV_TOUCH)) {
       JsVar *obj = jsvNewObject();
       if (obj) {
-        jsvObjectSetChildAndUnLock(obj, "x", jsvNewFromInteger((unsigned char)event.data.chars[0]));
-        jsvObjectSetChildAndUnLock(obj, "y", jsvNewFromInteger((unsigned char)event.data.chars[1]));
-        jsvObjectSetChildAndUnLock(obj, "b", jsvNewFromInteger((unsigned char)event.data.chars[2]));
+        unsigned char x = (unsigned char)event.data.chars[0];
+        unsigned char y = (unsigned char)event.data.chars[1];
+        unsigned char b = (unsigned char)event.data.chars[2];
+        // last x/y/buttons
+        static unsigned char lx, ly, lb;
+        if (!lb) {
+          lx = x;
+          ly = y;
+        }
+        jsvObjectSetChildAndUnLock(obj, "x", jsvNewFromInteger(x));
+        jsvObjectSetChildAndUnLock(obj, "y", jsvNewFromInteger(y));
+        jsvObjectSetChildAndUnLock(obj, "b", jsvNewFromInteger(b));
+        jsvObjectSetChildAndUnLock(obj, "dx", jsvNewFromInteger(x-lx));
+        jsvObjectSetChildAndUnLock(obj, "dy", jsvNewFromInteger(y-ly));
+        lx=x;
+        ly=y;
+        lb=b;
         jsiExecuteEventCallbackOn("E", JS_EVENT_PREFIX"touch", 1, &obj);
         jsvUnLock(obj);
       }

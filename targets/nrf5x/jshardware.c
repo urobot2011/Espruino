@@ -491,7 +491,10 @@ static void spiFlashWakeUp() {
   unsigned char buf[1];
   buf[0] = 0xAB;
   spiFlashWriteCS(buf,1);
-  nrf_delay_us(50); // datasheet tRES2 period > 20us  CS remains high
+  nrf_delay_us(30); // Wait at least 20us for Flash IC to wake up from deep power-down
+  spiFlashWriteCS(buf,1); // Might need two attempts
+  nrf_delay_us(30); 
+  spiFlashAwake = true;
 }
 
 void spiFlashSleep() {
@@ -502,6 +505,8 @@ void spiFlashSleep() {
   unsigned char buf[1];
   buf[0] = 0xB9;
   spiFlashWriteCS(buf,1);
+//  nrf_delay_us(2); // Wait at least 1us for Flash IC to enter deep power-down
+  spiFlashAwake = false;
 }
 #endif
 #endif
@@ -534,7 +539,8 @@ void TIMER1_IRQHandler(void) {
 }
 
 void jsh_sys_evt_handler(uint32_t sys_evt) {
-  if (sys_evt == NRF_EVT_FLASH_OPERATION_SUCCESS){
+  if (sys_evt == NRF_EVT_FLASH_OPERATION_SUCCESS ||
+      sys_evt == NRF_EVT_FLASH_OPERATION_ERROR){
     flashIsBusy = false;
   }
 }
@@ -698,7 +704,6 @@ void jshResetPeripherals() {
 #endif
 #ifdef SPIFLASH_SLEEP_CMD
   spiFlashWakeUp();
-  spiFlashAwake = true;
 #endif
 
   // disable lock bits
@@ -741,7 +746,7 @@ void jshInit() {
   jshPinOutput(LED1_PININDEX, LED1_ONSTATE);
 #endif
 
-  nrf_utils_lfclk_config_and_start();
+  nrf_utils_lfclk_config_and_start();   // RB note: For NRF_SD_BLE_API_VERSION>=5, this gets re-set by jsble_init()
 
 #ifdef DEFAULT_CONSOLE_RX_PIN
   // Only init UART if something is connected and RX is pulled up on boot...
@@ -856,7 +861,7 @@ void jshInit() {
                       APP_TIMER_MODE_SINGLE_SHOT,
                       wakeup_handler);
   if (err_code) jsiConsolePrintf("app_timer_create error %d\n", err_code);
-#else
+#else // !BLUETOOTH
   // because the code in bluetooth.c will call jsh_sys_evt_handler for us
   // if we were using bluetooth
   softdevice_sys_evt_handler_set(jsh_sys_evt_handler);
@@ -1884,7 +1889,7 @@ int jshSPISend(IOEventFlags device, int data) {
   nrf_spi_disable(p_spi);
   nrf_spim_enable(p_spim); // enable SPIM mode (DMA)
   return rx;
-#else
+#else // For newer nRF parts we can just use the API directly
   uint8_t tx = (uint8_t)data;
   uint8_t rx = 0;
   spi0Sending = true;
@@ -1971,6 +1976,7 @@ bool jshSPISendMany(IOEventFlags device, unsigned char *tx, unsigned char *rx, s
   spi0RxPtr = rx ? rx+c : 0;
   spi0Cnt = count-c;
   if (callback) spi0Callback = callback;
+
 #if NRF_SD_BLE_API_VERSION<5
   uint32_t err_code = nrf_drv_spi_transfer(&spi0, tx, c, rx, rx?c:0);
 #else
@@ -1988,7 +1994,9 @@ bool jshSPISendMany(IOEventFlags device, unsigned char *tx, unsigned char *rx, s
     jsExceptionHere(JSET_INTERNALERROR, "SPI Send Error %d\n", err_code);
     return false;
   }
-  if (!callback) jshSPIWait(device);
+  if (!callback) {
+    jshSPIWait(device);
+  }
   return true;
 #else
   return false;
@@ -2461,7 +2469,6 @@ bool jshSleep(JsSysTime timeUntilWake) {
 #ifdef SPIFLASH_SLEEP_CMD
   if (spiFlashAwake) {
     spiFlashSleep();
-    spiFlashAwake = false;
   }
 #endif
 #endif
