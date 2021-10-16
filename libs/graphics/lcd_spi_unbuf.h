@@ -21,6 +21,7 @@
 typedef struct {
   Pin pinCS;                //!< Pin to use for cs.
   Pin pinDC;                //!< Pin to use for Data Command.
+  Pin pinflashCS;            //!< Pin to restart SPI flash read
   int width;                //!< Display pixel size X
   int height;               //!< Display pixel size Y
   int colstart;             //!< Aditional starting address some pixels dont begin at 0
@@ -30,3 +31,4 @@ typedef struct {
 bool jswrap_lcd_spi_unbuf_idle();
 JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options);
 void lcd_spi_unbuf_setCallbacks(JsGraphics *gfx);
+void jswrap_lcd_spi_unbuf_command(int cmd, JsVar *data);

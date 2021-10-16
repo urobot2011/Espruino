@@ -28,11 +28,12 @@ info = {
      'CRYPTO','SHA256','SHA512',
      'TLS',
      'TELNET',
-     'TENSORFLOW',
+#     'TENSORFLOW',
    ],
    'makefile' : [
      'LINUX=1',
      'DEFINES += -DRASPBERRYPI',
+     'DEFINES += -DUSE_WIRINGPI',
    ]
  }
 };

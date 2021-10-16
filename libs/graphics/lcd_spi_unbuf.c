@@ -28,52 +28,93 @@ static int _pin_mosi;
 static int _pin_clk;
 static int _pin_cs;
 static int _pin_dc;
+static int _pin_flash_cs;
 static int _colstart;
 static int _rowstart;
 static int _lastx=-1;
 static int _lasty=-1;
-static uint16_t _chunk_buffer[LCD_SPI_UNBUF_LEN];
+
+#ifdef LCD_SPI_DOUBLEBUFF
+static uint16_t _chunk_buffers[2][LCD_SPI_UNBUF_LEN];
+volatile uint16_t *_chunk_buffer = &_chunk_buffers[0][0];
+volatile int _current_buf = 0;
+#else
+static uint16_t _chunk_buffers[LCD_SPI_UNBUF_LEN];
+volatile uint16_t *_chunk_buffer = &_chunk_buffers[0];
+#endif
+
 static int _chunk_index = 0;
 IOEventFlags _device;
 
-static void spi_cmd(const uint8_t cmd) 
-{
-  jshPinSetValue(_pin_dc, 0);
-  jshSPISend(_device, cmd);
-  jshPinSetValue(_pin_dc, 1);
+volatile int _cs_count=0; // to manage selected pin
+
+static void set_cs(){
+  jshInterruptOff();
+  if (!_cs_count) {
+#ifdef SPIFLASH_SHARED_SPI
+    jshPinSetValue(_pin_flash_cs, 1);
+    jshSPIEnable(_device,true);
+#endif
+    jshPinSetValue(_pin_cs, 0);
+  }
+  ++_cs_count;
+  jshInterruptOn();
 }
 
-static inline void spi_data(const uint8_t *data, int len) 
-{
-  jshSPISendMany(_device, data, NULL, len, NULL);
+static void rel_cs(){
+  jshInterruptOff();
+  --_cs_count;
+  if (!_cs_count) {
+    jshPinSetValue(_pin_cs, 1);
+#ifdef SPIFLASH_SHARED_SPI
+    jshSPIEnable(_device,false);
+#endif
+  }
+  jshInterruptOn();
+}
+
+static void spi_cmd(const uint8_t cmd, uint8_t *data, int dsize){
+  jshPinSetValue(_pin_dc, 0);
+  jshSPISendMany(_device, &cmd, NULL, 1, NULL);
+  jshPinSetValue(_pin_dc, 1);
+  if (data) jshSPISendMany(_device, data, NULL, dsize, NULL);
+}
+
+#ifdef LCD_SPI_DOUBLEBUFF
+static void endxfer(){
+  rel_cs();
 }
 
 static void flush_chunk_buffer(){
   if(_chunk_index == 0) return;
-  spi_data((uint8_t *)&_chunk_buffer, _chunk_index*2);
+  set_cs();
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2, &endxfer);
+  _chunk_index = 0;
+  _current_buf = _current_buf?0:1;
+  _chunk_buffer = &_chunk_buffers[_current_buf][0];
+}
+#else
+static void flush_chunk_buffer(){
+  if(_chunk_index == 0) return;
+  set_cs();
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2, NULL);
+  rel_cs();
   _chunk_index = 0;
 }
-
-static inline bool willFlush(){
-  return _chunk_index == LCD_SPI_UNBUF_LEN - 1;
-}
-
-static inline _put_pixel( uint16_t c) {
-  _chunk_buffer[_chunk_index++] = c;
-  if (_chunk_index==LCD_SPI_UNBUF_LEN) flush_chunk_buffer();
-}
+#endif
 
  /// flush chunk buffer to screen
 void lcd_flip(JsVar *parent) {
   if(_chunk_index == 0) return;
-  jshPinSetValue(_pin_cs, 0);
+  set_cs();
   flush_chunk_buffer();
-  jshPinSetValue(_pin_cs, 1);
+  rel_cs();
 }
 
 void jshLCD_SPI_UNBUFInitInfo(JshLCD_SPI_UNBUFInfo *inf) {
   inf->pinCS         = PIN_UNDEFINED;
   inf->pinDC         = PIN_UNDEFINED;
+  inf->pinflashCS    = 5;
   inf->width         = 240;
   inf->height        = 320;
   inf->colstart        = 0;
@@ -85,6 +126,7 @@ bool jsspiPopulateOptionsInfo( JshLCD_SPI_UNBUFInfo *inf, JsVar *options){
   jsvConfigObject configs[] = {
     {"cs", JSV_PIN, &inf->pinCS},
     {"dc", JSV_PIN, &inf->pinDC},
+    {"flashcs", JSV_PIN, &inf->pinflashCS},
     {"width", JSV_INTEGER , &inf->width},
     {"height", JSV_INTEGER , &inf->height},
     {"colstart", JSV_INTEGER , &inf->colstart},
@@ -132,6 +174,7 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
   }
   _pin_cs = inf.pinCS;
   _pin_dc = inf.pinDC;
+  _pin_flash_cs = inf.pinflashCS;
   _colstart = inf.colstart;
   _rowstart = inf.rowstart;
   _device = jsiGetDeviceFromClass(device);
@@ -167,53 +210,62 @@ JsVar *jswrap_lcd_spi_unbuf_connect(JsVar *device, JsVar *options) {
 void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
   unsigned char wd[4];
   flush_chunk_buffer();
+  jshSPIWait(_device); //wait for any async transfer to finish
   x1 += _colstart;
   y1 += _rowstart;
   x2 += _colstart;
   y2 += _rowstart;
-  spi_cmd(0x2A);
   wd[0] = x1>>8;
   wd[1] = x1 & 0xFF;
   wd[2] = x2>>8;
   wd[3] = x2 & 0xFF;
-  spi_data((uint8_t *)&wd, 4);
-  spi_cmd(0x2B);
+  spi_cmd(0x2A, &wd, 4);
   wd[0] = y1>>8;
   wd[1] = y1 & 0xFF;
   wd[2] = y2>>8;
   wd[3] = y2 & 0xFF;
-  spi_data((uint8_t *)&wd, 4);
-  spi_cmd(0x2C);
+  spi_cmd(0x2B, &wd, 4);
+  spi_cmd(0x2C, NULL, NULL);
 }
 
 void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
   uint16_t color =   (col>>8) | (col<<8); 
   if (x!=_lastx+1 || y!=_lasty) {
-    jshPinSetValue(_pin_cs, 0);
+    set_cs();
     disp_spi_transfer_addrwin(x, y, gfx->data.width, y+1);  
-    jshPinSetValue(_pin_cs, 1); //will never flush after 
-    _put_pixel(color);
+    rel_cs(); //will never flush after 
+    _chunk_buffer[_chunk_index++] = color;
     _lastx = x;
     _lasty = y;
   } else {
     _lastx++; 
-    if (willFlush()){
-      jshPinSetValue(_pin_cs, 0);
-      _put_pixel(color);
-      jshPinSetValue(_pin_cs, 1);
+    if ( _chunk_index == LCD_SPI_UNBUF_LEN - 1){
+      _chunk_buffer[_chunk_index++] = color;
+      flush_chunk_buffer();
     } else {
-      _put_pixel(color);
+        _chunk_buffer[_chunk_index++] = color;
     } 
   }
 }
 
+/*
+* Optimised so that we only fill buffer with pixel color once 
+* Leaves _chunk_index at 0 and all pixels transferred
+* does nout use double buffering as not helpful here.
+*/
 void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsigned int col) {
   int pixels = (1+x2-x1)*(1+y2-y1); 
   uint16_t color =   (col>>8) | (col<<8); 
-  jshPinSetValue(_pin_cs, 0);
-  disp_spi_transfer_addrwin(x1, y1, x2, y2);
-  for (int i=0; i<pixels; i++) _put_pixel(color);
-  jshPinSetValue(_pin_cs, 1);
+  set_cs();
+  disp_spi_transfer_addrwin(x1, y1, x2, y2); //always flushes buffer 
+  int fill = pixels>LCD_SPI_UNBUF_LEN ? LCD_SPI_UNBUF_LEN : pixels;
+  for (int i=0; i<fill; i++) _chunk_buffer[i] = color; //fill buffer with color for reuse
+  while (pixels>=fill) {
+       jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, fill*2,NULL);
+       pixels-=fill;
+  }
+  if (pixels>0) jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, pixels*2,NULL);
+  rel_cs();
   _lastx=-1;
   _lasty=-1;
 }
@@ -222,3 +274,43 @@ void lcd_spi_unbuf_setCallbacks(JsGraphics *gfx) {
   gfx->setPixel = lcd_spi_unbuf_setPixel;
   gfx->fillRect = lcd_spi_unbuf_fillRect;
 }
+
+
+/*JSON{
+  "type" : "staticmethod",
+  "class" : "lcd_spi_unbuf",
+  "name" : "command",
+  "generate" : "jswrap_lcd_spi_unbuf_command",
+  "params" : [
+     ["cmd","int32","The 8 bit command"],
+    ["data","JsVar","The data to send with the command either an integer, array, or string"]
+  ]
+}
+Used to send initialisation commands to LCD driver - has to be in native C to allow sharing SPI pins with SPI flash
+Must not be called before connect sets up device.
+ */
+void jswrap_lcd_spi_unbuf_command(int cmd, JsVar *data) {
+   unsigned char cc = (unsigned char)cmd;
+   unsigned char bb[64]; // allow for up to 64 data bytes;
+   int len = 0;
+   set_cs(); 
+  if (!data) {
+    spi_cmd(cc,NULL,NULL);
+  } else if (jsvIsNumeric(data)) {
+    bb[0] = (unsigned char)jsvGetInteger(data);len =1;
+    spi_cmd(cc,&bb,1);
+  } else if (jsvIsIterable(data)) {
+    JsvIterator it;
+    jsvIteratorNew(&it, data, JSIF_EVERY_ARRAY_ELEMENT);
+    while (jsvIteratorHasElement(&it) && len<64) {
+      bb[len] = (unsigned char)jsvIteratorGetIntegerValue(&it); ++len;
+      jsvIteratorNext(&it);
+    }
+    jsvIteratorFree(&it);
+    spi_cmd(cc,&bb,len);
+  } else {
+    jsExceptionHere(JSET_ERROR, "data Variable type %t not suited to command operation", data);
+  }
+  rel_cs();
+}
+

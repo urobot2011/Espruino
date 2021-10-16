@@ -2071,7 +2071,7 @@ void jsble_update_security() {
     pin_option.gap_opt.passkey.p_passkey = NULL;
     if (passkey[0]) {
       pin_option.gap_opt.passkey.p_passkey = passkey;
-      encryptUart = true;
+      //encryptUart = true;
     }
     uint32_t err_code =  sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &pin_option);
     jsble_check_error(err_code);

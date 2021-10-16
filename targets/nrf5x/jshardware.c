@@ -317,6 +317,11 @@ unsigned char *spi0RxPtr;
 unsigned char *spi0TxPtr;
 size_t spi0Cnt;
 
+#ifdef LCD_SPI_DOUBLEBUFF
+//lock for sharing spi if async double buffering
+volatile  spi0isFree = true;
+#endif
+
 // Handler for async SPI transfers
 volatile bool spi0Sending = false;
 void (*volatile spi0Callback)() = NULL;
@@ -503,18 +508,6 @@ static void spiFlashWakeUp() {
 bool spiFlashAwake = false;
 
 static void spiFlashWakeUp() {
-  /*unsigned char buf[4];
-  int tries = 10;
-  do {
-    buf[0] = 0xAB;
-    buf[1] = 0x00; // dummy
-    buf[2] = 0x00; // dummy
-    buf[3] = 0x00; // dummy
-    nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-    spiFlashWrite(buf,4);
-    spiFlashRead(buf,3);
-    nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-  } while (buf[0] != 0x15 && buf[1] != 0x15 && buf[2] != 0x15 && tries--);*/
   unsigned char buf[1];
   buf[0] = 0xAB;
   spiFlashWriteCS(buf,1);
@@ -523,6 +516,7 @@ static void spiFlashWakeUp() {
   nrf_delay_us(30); 
   spiFlashAwake = true;
 }
+
 void spiFlashSleep() {
   if (spiFlashLastAddress) {
     NRF_GPIO_PIN_SET_FAST((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
@@ -1902,7 +1896,6 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
     spi_config.miso_pin = (uint32_t)pinInfo[inf->pinMISO].pin;
   if (jshIsPinValid(inf->pinMOSI))
     spi_config.mosi_pin = (uint32_t)pinInfo[inf->pinMOSI].pin;
-
   if (spi0Initialised) nrf_drv_spi_uninit(&spi0);
   spi0Initialised = true;
   // No event handler means SPI transfers are blocking
@@ -1913,7 +1906,9 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
 #endif
   if (err_code != NRF_SUCCESS)
     jsExceptionHere(JSET_INTERNALERROR, "SPI Initialisation Error %d\n", err_code);
-
+#ifdef SPIFLASH_SHARED_SPI
+  jshSPIEnable(device,false);
+#else
   // nrf_drv_spi_init will set pins, but this ensures we know so can reset state later
   if (jshIsPinValid(inf->pinSCK)) {
     jshPinSetFunction(inf->pinSCK, JSH_SPI1|JSH_SPI_SCK);
@@ -1924,6 +1919,7 @@ void jshSPISetup(IOEventFlags device, JshSPIInfo *inf) {
   if (jshIsPinValid(inf->pinMISO)) {
     jshPinSetFunction(inf->pinMISO, JSH_SPI1|JSH_SPI_MISO);
   }
+#endif
 #endif
 }
 
@@ -1978,6 +1974,40 @@ int jshSPISend(IOEventFlags device, int data) {
   return d;*/
 }
 
+/* Enable and Disable SPI device */
+void jshSPIEnable(IOEventFlags device, bool enable) {
+#if defined(SPI0_USE_EASY_DMA)  && (SPI0_USE_EASY_DMA==1)
+#if NRF_SD_BLE_API_VERSION>5
+    NRF_SPIM_Type *p_spim = (NRF_SPIM_Type *)spi0.u.spim.p_reg;
+#else
+    NRF_SPIM_Type *p_spim = (NRF_SPIM_Type *)spi0.p_registers;
+#endif
+    if (enable) {
+#ifdef LCD_SPI_DOUBLEBUFF
+      spi0isFree = false;
+#endif
+      nrf_spim_enable(p_spim);
+    }
+    else {
+       nrf_spim_disable(p_spim);
+#ifdef LCD_SPI_DOUBLEBUFF
+       spi0isFree = true;
+#endif
+    }
+#else
+#if NRF_SD_BLE_API_VERSION>5
+    NRF_SPI_Type *p_spi = (NRF_SPI_Type *)spi0.u.spi.p_reg;
+#else
+    NRF_SPI_Type *p_spi = (NRF_SPI_Type *)spi0.p_registers;
+#endif
+   if (enable) {
+     nrf_spi_enable(p_spi);
+   }
+   else nrf_spi_disable(p_spi);
+#endif
+}
+
+
 /** Send 16 bit data through the given SPI device. */
 void jshSPISend16(IOEventFlags device, int data) {
 #if SPI_ENABLED
@@ -1996,8 +2026,7 @@ bool jshSPISendMany(IOEventFlags device, unsigned char *tx, unsigned char *rx, s
   if (device!=EV_SPI1 || !jshIsDeviceInitialised(device)) return false;
 #if defined(SPI0_USE_EASY_DMA) && NRF52832
   // Hack for https://infocenter.nordicsemi.com/topic/­errata_nRF52832_Rev2/ERR/nRF52832/Rev2/l­atest/anomaly_832_58.html?cp=4_2_1_0_1_8­
-  // Doesn't appear on NRF52840 or NRF52833 production parts
-  if (count==1) {
+  if (count==1 && rx) {
     int r = jshSPISend(device, tx?*tx:-1);
     if (rx) *rx = r;
     if (callback) callback();
@@ -2053,7 +2082,7 @@ void jshSPISetReceive(IOEventFlags device, bool isReceive) {
 /** Wait until SPI send is finished, and flush all received data */
 void jshSPIWait(IOEventFlags device) {
 #if SPI_ENABLED
-  WAIT_UNTIL(!spi0Sending, "SPI0");
+  WAIT_UNTIL(!spi0Sending, "SPI0-lock");
 #endif
 }
 #ifdef I2C_SLAVE
@@ -2327,6 +2356,9 @@ void jshFlashRead(void * buf, uint32_t addr, uint32_t len) {
 #ifdef SPIFLASH_BASE
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
+#ifdef LCD_SPI_DOUBLEBUFF
+    WAIT_UNTIL(spi0isFree, "SPI0-FlashRead");
+#endif
     //jsiConsolePrintf("SPI Read %d %d\n",addr,len);
 #ifdef SPIFLASH_SLEEP_CMD
     if (!spiFlashAwake) spiFlashWakeUp();
@@ -2367,8 +2399,8 @@ void jshFlashWrite(void * buf, uint32_t addr, uint32_t len) {
 #ifdef SPIFLASH_BASE
   if ((addr >= SPIFLASH_BASE) && (addr < (SPIFLASH_BASE+SPIFLASH_LENGTH))) {
     addr &= 0xFFFFFF;
-#ifdef SPIFLASH_SLEEP_CMD
-    if (!spiFlashAwake) spiFlashWakeUp();
+#ifdef LCD_SPI_DOUBLEBUFF
+    WAIT_UNTIL(spi0isFree, "SPI0-FlashWrite");
 #endif
     // disable CS if jshFlashRead had left it set
     if (spiFlashLastAddress) {

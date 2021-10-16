@@ -752,7 +752,7 @@ void jswrap_banglejs_pwrBacklight(bool on) {
 #ifdef BANGLEJS_F18
   jswrap_banglejs_ioWr(IOEXP_LCD_BACKLIGHT, !on);
 #endif
-#ifdef LCD_BL
+#if defined(LCD_BL) //&& !defined(SMAQ3)
   jshPinOutput(LCD_BL, on);
 #endif
 #ifdef LCD_CONTROLLER_LPM013M126
@@ -980,7 +980,7 @@ void peripheralPollHandler() {
     buf[0]=0x4E;
     jsi2cWrite(MAG_I2C, MAG_ADDR, 1, buf, false);
     jsi2cRead(MAG_I2C, MAG_ADDR, 7, buf, true);
-    if (!(buf[0]&16)) { // then we have data that wasn't read before
+//    if (!(buf[0]&16)) { // then we have data that wasn't read before
       // &2 seems always set
       // &16 seems set if we read twice
       // &32 might be reading in progress
@@ -992,7 +992,7 @@ void peripheralPollHandler() {
       jsi2cWrite(MAG_I2C, MAG_ADDR, 1, buf, false);
       jsi2cRead(MAG_I2C, MAG_ADDR, 1, buf, true);
       newReading = true;
-    }
+//    }
 #endif
     if (newReading) {
       if (mag.x<magmin.x) magmin.x=mag.x;
@@ -1426,6 +1426,8 @@ void touchHandlerInternal(int tx, int ty, int pts, int gesture) {
   touchPts = pts;
   static int lastGesture = 0;
   if (gesture!=lastGesture) {
+    flipTimer=0;
+    IOEvent evt;
     switch (gesture) { // gesture
     case 0:break; // no gesture
     case 1: // slide down
@@ -1463,7 +1465,6 @@ void touchHandlerInternal(int tx, int ty, int pts, int gesture) {
     // ensure we don't sleep if touchscreen is being used
     inactivityTimer = 0;
   }
-
   lastGesture = gesture;
 }
 #endif
@@ -3475,6 +3476,16 @@ bool jswrap_banglejs_idle() {
         inactivityTimer = 0;
       }
     }
+#ifdef SMAQ3
+    if (bangleTasks & JSBT_SWIPE_MASK) {
+      JsVar *o = jsvNewFromInteger(((bangleTasks & JSBT_SWIPE_LEFT)?-1:0) |
+                                   ((bangleTasks & JSBT_SWIPE_RIGHT)?1:0) |
+                                   ((bangleTasks & JSBT_SWIPE_UP)?-2:0)   |
+                                   ((bangleTasks & JSBT_SWIPE_DOWN)?2:0));
+      jsiQueueObjectCallbacks(bangle, JS_EVENT_PREFIX"swipe", &o, 1);
+      jsvUnLock(o);
+    }
+#else
     if (bangleTasks & JSBT_SWIPE_MASK) {
       JsVar *o[2] = {
           jsvNewFromInteger((bangleTasks & JSBT_SWIPE_LEFT)?-1:((bangleTasks & JSBT_SWIPE_RIGHT)?1:0)),
@@ -3502,6 +3513,7 @@ bool jswrap_banglejs_idle() {
       jsvUnLock(o);
 #endif
     }
+#endif
   }
 #ifdef TOUCH_DEVICE
   if (bangleTasks & JSBT_DRAG) {
@@ -4632,6 +4644,12 @@ The second `options` argument can contain:
     "type" : "staticmethod", "class" : "E", "name" : "showMenu", "patch":true,
     "generate_js" : "libs/js/banglejs/E_showMenu_Q3.min.js",
     "#if" : "defined(BANGLEJS) && defined(BANGLEJS_Q3)"
+}
+*/
+/*JSON{
+    "type" : "staticmethod", "class" : "E", "name" : "showMessage", "patch":true,
+    "generate_js" : "libs/js/banglejs/E_showMessage_SMAQ3.js",
+    "#if" : "defined(BANGLEJS) && defined(SMAQ3)"
 }
 */
 /*JSON{

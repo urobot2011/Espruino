@@ -16,73 +16,82 @@
 import pinutils;
 
 info = {
- 'name' : "nRF52 Development Kit",
- 'link' :  [ "https://www.nordicsemi.com/eng/Products/Bluetooth-low-energy/nRF52-DK" ],
- 'espruino_page_link' : 'nRF52832DK',
-  # This is the PCA10036
+ 'name' : "Particle Xenon",
+ 'link' :  [ "https://docs.particle.io/datasheets/discontinued/xenon-datasheet/" ],
+ 'espruino_page_link' : 'nRF52840DK',
  'default_console' : "EV_SERIAL1",
  'default_console_tx' : "D6",
  'default_console_rx' : "D8",
  'default_console_baudrate' : "9600",
- 'variables' : 2756, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
-# 'bootloader' : 1,
- 'binary_name' : 'espruino_%v_nrf52832.hex',
+ 'variables' : 12500, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
+ 'bootloader' : 1,
+ 'binary_name' : 'espruino_%v_xenon.hex',
  'build' : {
    'optimizeflags' : '-Os',
    'libraries' : [
      'BLUETOOTH',
-#    'NET',
-     'GRAPHICS'
-#    'NFC',
-#    'NEOPIXEL'
+#     'NET',
+     'GRAPHICS',
+#     'NFC',
+#     'NEOPIXEL'
    ],
    'makefile' : [
-     'DEFINES+=-DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
-     'DEFINES += -DBOARD_PCA10040 -DPCA10040',
-     #'DEFINES += -DI2C_SLAVE -DTWIS_ENABLED=1 -DTWIS1_ENABLED=1' # enable I2C slave support
-       # I2C slave can then be used with I2C1.setup({sda,scl,addr:42})
+     'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
+#     'DEFINES += -DBOARD_PCA10056',
+     'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
+     'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9', #S140 6.0.0
+     'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
+     'DEFINES += -DNRF_USB=1 -DUSB -DUART1_ENABLED=1 -DRNG_CONFIG_POOL_SIZE=64',
+     'DEFINES += -DNRF_BL_DFU_INSECURE=1',
+     'NRF_SDK15=1'
    ]
  }
 };
 
 
 chip = {
-  'part' : "NRF52832",
+  'part' : "NRF52840",
   'family' : "NRF52",
   'package' : "QFN48",
-  'ram' : 64,
-  'flash' : 512,
+  'ram' : 256,
+  'flash' : 1024,
   'speed' : 64,
-  'usart' : 1,
+  'usart' : 2,
   'spi' : 1,
   'i2c' : 1,
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
+    'address' : ((246 - 20) * 4096), # Bootloader at 0xF8000 takes pages 248-255, FS takes 246-247
     'page_size' : 4096,
-    'address' : ((0x7a - 2 - 24) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
-    'pages' : 24,
-#   'address' : ((118 - 10) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
-#   'pages' : 10,
-    'flash_available' : 512 - ((0x1F + 6 + 2 + 24)*4) # Softdevice 2.0 uses 28 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
-#   'flash_available' : 512 - ((31 + 8 + 2 + 10)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+    'pages' : 20,
+    'flash_available' : 1024 - ((38 + 8 + 2 + 20)*4) # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 8, FS 2, code 20. Each page is 4 kb.
   },
 };
 
 devices = {
-  'BTN1' : { 'pin' : 'D13', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
-  'BTN2' : { 'pin' : 'D14', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
-  'BTN3' : { 'pin' : 'D15', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
-  'BTN4' : { 'pin' : 'D16', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
-  'LED1' : { 'pin' : 'D17' }, # Pin negated in software
-  'LED2' : { 'pin' : 'D18' }, # Pin negated in software
-  'LED3' : { 'pin' : 'D19' }, # Pin negated in software
-  'LED4' : { 'pin' : 'D20' }, # Pin negated in software
+  'BTN1' : { 'pin' : 'D11', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
+#RGB LED
+  'LED1' : { 'pin' : 'D13' }, # Pin negated in software
+  'LED2' : { 'pin' : 'D14' }, # Pin negated in software
+  'LED3' : { 'pin' : 'D15' }, # Pin negated in software
   'RX_PIN_NUMBER' : { 'pin' : 'D8'},
   'TX_PIN_NUMBER' : { 'pin' : 'D6'},
-  'CTS_PIN_NUMBER' : { 'pin' : 'D7'},
-  'RTS_PIN_NUMBER' : { 'pin' : 'D5'},
-  # Pin D22 is used for clock when driving neopixels - as not specifying a pin seems to break things
+#  'CTS_PIN_NUMBER' : { 'pin' : 'D7'},
+#  'RTS_PIN_NUMBER' : { 'pin' : 'D5'},
+  'SPIFLASH' : {
+            'pin_cs' : 'D17',
+            'pin_sck' : 'D19',
+            'pin_mosi' : 'D20',
+            'pin_miso' : 'D21',
+            'pin_wp' : 'D22',
+            'pin_hold' : 'D23',
+#            'pin_rst' : 'D23', # no reset but this is HOLD pin for XENON, we want it set to 1
+            'size' : 4096*1024, # 4MB
+            'memmap_base' : 0x60000000,
+          }
+
+
 };
 
 # left-right, or top-bottom order
@@ -103,7 +112,7 @@ board["_css"] = """
   height: 800px;
   top: 0px;
   left : 200px;
-  background-image: url(img/NRF52832DK.jpg);
+  background-image: url(img/NRF528DK.jpg);
 }
 #boardcontainer {
   height: 900px;
@@ -123,7 +132,7 @@ board["_css"] = """
 """;
 
 def get_pins():
-  pins = pinutils.generate_pins(0,31) # 32 General Purpose I/O Pins.
+  pins = pinutils.generate_pins(0,47) # 48 General Purpose I/O Pins.
   pinutils.findpin(pins, "PD0", True)["functions"]["XL1"]=0;
   pinutils.findpin(pins, "PD1", True)["functions"]["XL2"]=0;
   pinutils.findpin(pins, "PD5", True)["functions"]["RTS"]=0;
@@ -144,11 +153,7 @@ def get_pins():
   pinutils.findpin(pins, "PD13", True)["functions"]["NEGATED"]=0;
   pinutils.findpin(pins, "PD14", True)["functions"]["NEGATED"]=0;
   pinutils.findpin(pins, "PD15", True)["functions"]["NEGATED"]=0;
-  pinutils.findpin(pins, "PD16", True)["functions"]["NEGATED"]=0;
-  pinutils.findpin(pins, "PD17", True)["functions"]["NEGATED"]=0;
-  pinutils.findpin(pins, "PD18", True)["functions"]["NEGATED"]=0;
-  pinutils.findpin(pins, "PD19", True)["functions"]["NEGATED"]=0;
-  pinutils.findpin(pins, "PD20", True)["functions"]["NEGATED"]=0;
+  pinutils.findpin(pins, "PD11", True)["functions"]["NEGATED"]=0;
 
   # everything is non-5v tolerant
   for pin in pins:

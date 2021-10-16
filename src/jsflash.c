@@ -506,7 +506,7 @@ uint32_t jsfFindFile(JsfFileName name, JsfFileHeader *returnedHeader) {
       if (memcmp(header.name.c, name.c, sizeof(name.c))==0) {
         uint32_t endOfFile = addr + (uint32_t)sizeof(JsfFileHeader) + jsfGetFileSize(&header);
         if (endOfFile<addr || endOfFile>JSF_END_ADDRESS)
-          return 0; // corrupt - file too long
+          return 0; //  - file too long
         if (returnedHeader)
           *returnedHeader = header;
         return addr+(uint32_t)sizeof(JsfFileHeader);
