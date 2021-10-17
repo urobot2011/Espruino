@@ -97,6 +97,7 @@ void jswrap_nfc_stop();
 void jswrap_nfc_send(JsVar *payload);
 void jswrap_ble_sendHIDReport(JsVar *data, JsVar *callback); // BLE_HIDS_ENABLED
 void jswrap_ble_sendANCSAction(int uid, bool positive); // if ESPR_BLUETOOTH_ANCS
+void jswrap_ble_requestANCSMessage(int uid); // if ESPR_BLUETOOTH_ANCS
 
 JsVar *jswrap_ble_requestDevice(JsVar *options);
 JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options);

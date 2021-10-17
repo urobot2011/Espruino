@@ -156,6 +156,7 @@ typedef enum {
   BLEP_TASK_AUTH_STATUS,            //< Data on how authentication was going has been received
 #ifdef ESPR_BLUETOOTH_ANCS
   BLEP_ANCS_NOTIF,                  //< Apple Notification Centre notification received
+  BLEP_ANCS_ATTR,                   //< Apple Notification Centre attributes received
 #endif
 } BLEPending;
 
