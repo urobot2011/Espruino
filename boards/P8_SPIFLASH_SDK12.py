@@ -46,6 +46,7 @@ info = {
      'USE_LCD_SPI_UNBUF=1',
      'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=60 -DLCD_SPI_DOUBLEBUFF=1',
      'DEFINES += -DSPIFLASH_SHARED_SPI -DSPI0_USE_EASY_DMA=1',
+     'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'NRF_BL_DFU_INSECURE=1',
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0x8C,0x91'

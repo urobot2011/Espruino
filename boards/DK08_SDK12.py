@@ -36,6 +36,7 @@ info = {
    'makefile' : [
 #     'DEFINES+=-DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
      'DEFINES+= -DUSE_FONT_6X8 -DBLE_HIDS_ENABLED=1 -DBLUETOOTH_NAME_PREFIX=\'"DK08"\'',
+     'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'NRF_BL_DFU_INSECURE=1',
      'DEFINES+=-DBTN1_IS_TOUCH=1',
