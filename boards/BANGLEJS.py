@@ -29,8 +29,8 @@ info = {
      'BLUETOOTH',
      'TERMINAL',
      'GRAPHICS', 
-     'LCD_ST7789_8BIT',
-     'TENSORFLOW'     
+     'LCD_ST7789_8BIT'
+     # 'TENSORFLOW'     
    ],
    'makefile' : [
      'DEFINES += -DESPR_HWVERSION=1',
