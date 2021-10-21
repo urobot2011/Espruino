@@ -121,6 +121,9 @@ void jswrap_ble_amsCommand(JsVar *id);
 
 JsVar *jswrap_ble_requestDevice(JsVar *options);
 JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options);
+
+JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac);
+
 void jswrap_ble_setWhitelist(bool whitelist);
 void jswrap_ble_setConnectionInterval(JsVar *interval);
 void jswrap_ble_setSecurity(JsVar *options);

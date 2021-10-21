@@ -749,6 +749,10 @@ uint8_t match_request : 1;               If 1 requires the application to report
       case BLEP_AMS_ATTRIBUTE:
         ble_ams_handle_attribute(blep, (char *)buffer, bufferLen);
         break;
+      case BLEP_ANCS_ATTR:
+        ble_ancs_handle_attr(blep, (ble_ancs_c_evt_notif_t*)buffer);
+        break;
+
 #endif
    default:
      jsWarn("jsble_exec_pending: Unknown enum type %d",(int)blep);
@@ -2083,7 +2087,7 @@ void jsble_update_security() {
     pin_option.gap_opt.passkey.p_passkey = NULL;
     if (passkey[0]) {
       pin_option.gap_opt.passkey.p_passkey = passkey;
-      encryptUart = true;
+      //encryptUart = true;
     }
     uint32_t err_code =  sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &pin_option);
     jsble_check_error(err_code);

@@ -2711,6 +2711,27 @@ void jswrap_ble_amsCommand(JsVar *id) {
 #endif
 }
 
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
+    "name" : "requestANCSMessage",
+    "ifdef" : "NRF52_SERIES",
+    "generate" : "jswrap_ble_requestANCSMessage",
+    "params" : [
+      ["uid","int","The UID of the notification to request message contents"]
+    ]
+}
+Request the message for notification with UID to be resent from phone
+*/
+void jswrap_ble_requestANCSMessage(int uid) {
+#if ESPR_BLUETOOTH_ANCS
+  if (bleStatus & BLE_ANCS_INITED)
+    ble_ancs_request(uid);
+#endif
+}
+
+
 /*JSON{
     "type" : "staticmethod",
     "class" : "NRF",
@@ -2913,6 +2934,46 @@ JsVar *jswrap_ble_connect(JsVar *mac, JsVar *options) {
   return 0;
 #endif
 }
+
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
+    "name" : "getGattforCentralServer",
+    "ifdef" : "NRF52_SERIES",
+    "generate" : "jswrap_ble_getGattforCentralServer",
+    "params" : [
+      ["mac","JsVar","The MAC address to connect to"]
+     ],
+    "return" : ["JsVar", "A `Promise` that is resolved (or rejected) when the connection is complete" ],
+    "return_object" : "Promise"
+}
+*/
+#ifdef NRF52_SERIES
+JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac) {
+  if (jsble_has_peripheral_connection()) {
+    m_central_conn_handle = m_peripheral_conn_handle;
+    m_peripheral_conn_handle = BLE_CONN_HANDLE_INVALID;
+  } else
+  {
+    return 0;
+  }
+  JsVar *device = jspNewObject(0, "BluetoothDevice");
+  if (!device) return 0;
+  jsvObjectSetChild(device, "id", mac);
+  JsVar *gatt = jswrap_BluetoothDevice_gatt(device);
+  jsvUnLock(device);
+  if (!gatt) return 0;
+  jsvObjectSetChild(gatt, "connected", jsvNewFromBool(true));
+  bleSetActiveBluetoothGattServer(gatt);
+  jsvUnLock(gatt);
+  return gatt;
+}
+#else
+JsVar *jswrap_ble_getGattforCentralServer(JsVar *mac) {
+  return 0;
+}
+#endif
 
 /*JSON{
     "type" : "staticmethod",

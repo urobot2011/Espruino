@@ -121,11 +121,14 @@ __attribute__((weak)) void jshBusyIdle() {
 }
 
 // Only define this if it's not used elsewhere
-__attribute__((weak)) bool jshIsPinStateDefault(Pin pin, JshPinState state) {
+ bool jshIsPinStateDefault(Pin pin, JshPinState state) {
   return state == JSHPINSTATE_GPIO_IN || state == JSHPINSTATE_ADC_IN;
 }
 
 __attribute__((weak)) void jshUSARTUnSetup(IOEventFlags device) {
   NOT_USED(device);
   // placeholder - not all platforms implement this
+}
+// Only define this if it's not used elsewhere
+__attribute__((weak)) void jshSPIEnable(IOEventFlags device, bool enable){
 }
