@@ -2715,26 +2715,6 @@ void jswrap_ble_amsCommand(JsVar *id) {
 /*JSON{
     "type" : "staticmethod",
     "class" : "NRF",
-    "name" : "requestANCSMessage",
-    "ifdef" : "NRF52_SERIES",
-    "generate" : "jswrap_ble_requestANCSMessage",
-    "params" : [
-      ["uid","int","The UID of the notification to request message contents"]
-    ]
-}
-Request the message for notification with UID to be resent from phone
-*/
-void jswrap_ble_requestANCSMessage(int uid) {
-#if ESPR_BLUETOOTH_ANCS
-  if (bleStatus & BLE_ANCS_INITED)
-    ble_ancs_request(uid);
-#endif
-}
-
-
-/*JSON{
-    "type" : "staticmethod",
-    "class" : "NRF",
     "name" : "requestDevice",
     "#if" : "defined(NRF52_SERIES) || defined(ESP32)",
     "generate" : "jswrap_ble_requestDevice",
