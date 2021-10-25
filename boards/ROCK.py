@@ -34,8 +34,8 @@ info = {
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
      'USE_LCD_SPI_UNBUF=1',
-     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=60 -DLCD_SPI_DOUBLEBUFF=1',
-     'DEFINES += -DSPI0_USE_EASY_DMA=1',
+     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120 -DLCD_SPI_DOUBLEBUFF=1',
+     'DEFINES += -DESPR_USE_SPI3 -DSPI0_USE_EASY_DMA=1',
      'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
 #     'BLACKLIST=boards/MAGIC3.blocklist', # force some stuff to be removed to save space
      'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1  -DSPIFLASH_SLEEP_CMD=1  -DESPR_DCDC_ENABLE=1',

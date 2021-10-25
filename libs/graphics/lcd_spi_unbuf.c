@@ -55,6 +55,10 @@ static void set_cs(){
     jshPinSetValue(_pin_flash_cs, 1);
     jshSPIEnable(_device,true);
 #endif
+#ifdef ESPR_USE_SPI3
+  // anomaly 195 workaround - enable SPI before use
+  *(volatile uint32_t *)0x4002F500 = 7;
+#endif
     jshPinSetValue(_pin_cs, 0);
   }
   ++_cs_count;
@@ -68,6 +72,11 @@ static void rel_cs(){
     jshPinSetValue(_pin_cs, 1);
 #ifdef SPIFLASH_SHARED_SPI
     jshSPIEnable(_device,false);
+#endif
+#ifdef ESPR_USE_SPI3
+  // anomaly 195 workaround - disable SPI when done
+  *(volatile uint32_t *)0x4002F500 = 0;
+  *(volatile uint32_t *)0x4002F004 = 1;
 #endif
   }
   jshInterruptOn();
