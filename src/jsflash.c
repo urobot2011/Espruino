@@ -16,6 +16,7 @@
 #include "jsvariterator.h"
 #include "jsinteractive.h"
 #include "jswrap_string.h" //jswrap_string_match
+#include "jswrap_espruino.h" //jswrap_espruino_CRC
 
 #define SAVED_CODE_BOOTCODE_RESET ".bootrst" // bootcode that runs even after reset
 #define SAVED_CODE_BOOTCODE ".bootcde" // bootcode that doesn't run after reset
@@ -571,6 +572,38 @@ uint32_t jsfFindFile(JsfFileName name, JsfFileHeader *returnedHeader) {
   return a;
 }
 
+static uint32_t jsfBankFindFileFromAddr(uint32_t bankAddress, uint32_t bankEndAddress, uint32_t containsAddr, JsfFileHeader *returnedHeader) {
+  uint32_t addr = bankAddress;
+  JsfFileHeader header;
+  memset(&header,0,sizeof(JsfFileHeader));
+  if (jsfGetFileHeader(addr, &header, false)) do {
+    uint32_t endOfFile = addr + (uint32_t)sizeof(JsfFileHeader) + jsfGetFileSize(&header);
+    if ((header.name.firstChars != 0) && // not been replaced
+        (addr<=containsAddr && containsAddr<=endOfFile)) {
+      // Now load the whole header (with name) and check properly
+      jsfGetFileHeader(addr, &header, true);
+      if (returnedHeader)
+        *returnedHeader = header;
+      return addr+(uint32_t)sizeof(JsfFileHeader);
+    }
+  } while (jsfGetNextFileHeader(&addr, &header, GNFH_GET_ALL|GNFH_READ_ONLY_FILENAME_START)); // still only get first 4 chars of name
+  return 0;
+}
+
+uint32_t jsfFindFileFromAddr(uint32_t containsAddr, JsfFileHeader *returnedHeader) {
+  if (containsAddr>=JSF_START_ADDRESS && containsAddr<=JSF_END_ADDRESS) {
+    uint32_t a = jsfBankFindFileFromAddr(JSF_START_ADDRESS, JSF_END_ADDRESS, containsAddr, returnedHeader);
+    if (a) return a;
+  }
+#ifdef JSF_BANK2_START_ADDRESS
+  if (containsAddr>=JSF_BANK2_START_ADDRESS && containsAddr<=JSF_BANK2_END_ADDRESS) {
+    uint32_t a = jsfBankFindFileFromAddr(JSF_BANK2_START_ADDRESS, JSF_BANK2_END_ADDRESS, containsAddr, returnedHeader);
+    if (a) return a;
+  }
+#endif
+  return 0;
+}
+
 static void jsfBankDebugFiles(uint32_t addr) {
   uint32_t pageAddr = 0, pageLen = 0, pageEndAddr = 0;
 
@@ -698,25 +731,14 @@ JsVar *jsfReadFile(JsfFileName name, int offset, int length) {
   if (length<=0) return jsvNewFromEmptyString();
   // now increment address by offset
   addr += (uint32_t)offset;
+  return jsvAddressToVar(addr, (uint32_t)length);
+}
 
+JsVar* jsvAddressToVar(size_t addr, uint32_t length) {
+  if (length<=0) return jsvNewFromEmptyString();
   size_t mappedAddr = jshFlashGetMemMapAddress((size_t)addr);
 #ifdef SPIFLASH_BASE // if using SPI flash it can't be memory-mapped
   if (!mappedAddr) {
-    /*JsVar *v = jsvNewStringOfLength(length, NULL);
-    if (v) {
-      JsvStringIterator it;
-      jsvStringIteratorNew(&it, v, 0);
-      while (length && jsvStringIteratorHasChar(&it)) {
-        unsigned char *data;
-        unsigned int l = 0;
-        jsvStringIteratorGetPtrAndNext(&it, &data, &l);
-        jshFlashRead(data, addr, l);
-        addr += l;
-        length -= l;
-      }
-      jsvStringIteratorFree(&it);
-    }
-    return v;*/
     return jsvNewFlashString((char*)(size_t)addr, (size_t)length);
   }
 #endif
@@ -787,7 +809,7 @@ bool jsfWriteFile(JsfFileName name, JsVar *data, JsfFileFlags flags, JsVarInt of
  * If containing!=0, file flags must contain one of the 'containing' argument's bits.
  * Flags can't contain any bits in the 'notContaining' argument
  */
-static void jsfBankListFiles(JsVar *files, uint32_t addr, JsVar *regex, JsfFileFlags containing, JsfFileFlags notContaining) {
+static void jsfBankListFiles(JsVar *files, uint32_t addr, JsVar *regex, JsfFileFlags containing, JsfFileFlags notContaining, uint32_t *hash) {
   JsfFileHeader header;
   memset(&header,0,sizeof(JsfFileHeader));
   if (jsfGetFileHeader(addr, &header, true)) do {
@@ -812,7 +834,13 @@ static void jsfBankListFiles(JsVar *files, uint32_t addr, JsVar *regex, JsfFileF
         match = !(jsvIsUndefined(m) || jsvIsNull(m));
         jsvUnLock(m);
       }
-      if (match) jsvArrayPushAndUnLock(files, v);
+#ifndef SAVE_ON_FLASH
+      if (hash && match) {
+        *hash = (*hash<<1) | (*hash>>31); // roll hash
+        *hash = *hash ^ addr ^ jsvGetIntegerAndUnLock(jswrap_espruino_CRC32(v)); // apply filename
+      }
+#endif
+      if (match && files) jsvArrayPushAndUnLock(files, v);
       else jsvUnLock(v);
     }
   } while (jsfGetNextFileHeader(&addr, &header, GNFH_GET_ALL));
@@ -826,13 +854,26 @@ static void jsfBankListFiles(JsVar *files, uint32_t addr, JsVar *regex, JsfFileF
 JsVar *jsfListFiles(JsVar *regex, JsfFileFlags containing, JsfFileFlags notContaining) {
   JsVar *files = jsvNewEmptyArray();
   if (!files) return 0;
-  jsfBankListFiles(files, JSF_START_ADDRESS, regex, containing, notContaining);
+  jsfBankListFiles(files, JSF_START_ADDRESS, regex, containing, notContaining, NULL);
 #ifdef JSF_BANK2_START_ADDRESS
-  jsfBankListFiles(files, JSF_BANK2_START_ADDRESS, regex, containing, notContaining);
+  jsfBankListFiles(files, JSF_BANK2_START_ADDRESS, regex, containing, notContaining, NULL);
 #endif
   return files;
 }
 
+
+/** Hash all files matching regex
+ * If containing!=0, file flags must contain one of the 'containing' argument's bits.
+ * Flags can't contain any bits in the 'notContaining' argument
+ */
+uint32_t jsfHashFiles(JsVar *regex, JsfFileFlags containing, JsfFileFlags notContaining) {
+  uint32_t hash = 0xABCDDCBA;
+  jsfBankListFiles(NULL, JSF_START_ADDRESS, regex, containing, notContaining, &hash);
+#ifdef JSF_BANK2_START_ADDRESS
+  jsfBankListFiles(NULL, JSF_BANK2_START_ADDRESS, regex, containing, notContaining, &hash);
+#endif
+  return hash;
+}
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------

@@ -1922,6 +1922,7 @@ Set internal options used for gestures, etc...
 * `lockTimeout` how many milliseconds before the screen locks
 * `lcdPowerTimeout` how many milliseconds before the screen turns off
 * `backlightTimeout` how many milliseconds before the screen's backlight turns off
+* `hrmPollInterval` set the requested poll interval for the heart rate monitor. On Bangle.js 2 (only 10,20,40,80,160,200 ms are supported, and polling rate may not be exact)
 
 Where accelerations are used they are in internal units, where `8192 = 1g`
 
@@ -1937,7 +1938,13 @@ JsVar * _jswrap_banglejs_setOptions(JsVar *options, bool createObject) {
   int stepCounterThresholdLow, stepCounterThresholdHigh; // ignore these with new step counter
   int _accelGestureStartThresh = accelGestureStartThresh*accelGestureStartThresh;
   int _accelGestureEndThresh = accelGestureEndThresh*accelGestureEndThresh;
+#ifdef HEARTRATE
+  int _hrmPollInterval = hrmPollInterval;
+#endif
   jsvConfigObject configs[] = {
+#ifdef HEARTRATE
+      {"hrmPollInterval", JSV_INTEGER, &_hrmPollInterval},
+#endif
       {"gestureStartThresh", JSV_INTEGER, &_accelGestureStartThresh},
       {"gestureEndThresh", JSV_INTEGER, &_accelGestureEndThresh},
       {"gestureInactiveCount", JSV_INTEGER, &accelGestureInactiveCount},
@@ -1974,6 +1981,9 @@ JsVar * _jswrap_banglejs_setOptions(JsVar *options, bool createObject) {
     if (backlightTimeout<0) backlightTimeout=0;
     accelGestureStartThresh = int_sqrt32(_accelGestureStartThresh);
     accelGestureEndThresh = int_sqrt32(_accelGestureEndThresh);
+#ifdef HEARTRATE
+    hrmPollInterval = (uint16_t)_hrmPollInterval;
+#endif
   }
   return 0;
 }
@@ -2086,7 +2096,7 @@ int jswrap_banglejs_isCharging() {
 
 /// get battery percentage
 JsVarInt jswrap_banglejs_getBattery() {
-#ifdef BAT_PIN_VOLTAGE
+#if defined(BAT_PIN_VOLTAGE) && !defined(EMULATED)
   JsVarFloat v = jshPinAnalog(BAT_PIN_VOLTAGE);
 #ifdef BANGLEJS_Q3
   const JsVarFloat vlo = 0.246;
@@ -2110,7 +2120,7 @@ JsVarInt jswrap_banglejs_getBattery() {
   if (pc>100) pc=100;
   if (pc<0) pc=0;
   return pc;
-#else
+#else //!BAT_PIN_VOLTAGE || EMULATED
   return 50;
 #endif
 }
@@ -2181,6 +2191,7 @@ bool jswrap_banglejs_setHRMPower(bool isOn, JsVar *appId) {
   return false;
 #endif
 }
+
 /*JSON{
     "type" : "staticmethod",
     "class" : "Bangle",
@@ -3550,7 +3561,7 @@ bool jswrap_banglejs_idle() {
   // Automatically flip!
   JsVar *graphics = jsvObjectGetChild(execInfo.hiddenRoot, JS_GRAPHICS_VAR, 0);
   JsGraphics gfx;
-  if (graphics && graphicsGetFromVar(&gfx, graphics)) {
+  if (graphicsGetFromVar(&gfx, graphics)) {
     if (gfx.data.modMaxX >= gfx.data.modMinX) {
 #ifdef LCD_CONTROLLER_LPM013M126
       lcdMemLCD_flip(&gfx);
@@ -3704,6 +3715,7 @@ JsVar *jswrap_banglejs_dbg() {
   return o;
 }
 
+#ifndef EMULATED
 void _jswrap_banglejs_i2cWr(JshI2CInfo *i2c, int i2cAddr, JsVarInt reg, JsVarInt data) {
   unsigned char buf[2];
   buf[0] = (unsigned char)reg;
@@ -3729,6 +3741,7 @@ JsVar *_jswrap_banglejs_i2cRd(JshI2CInfo *i2c, int i2cAddr, JsVarInt reg, JsVarI
     return d;
   } else return jsvNewFromInteger(buf[0]);
 }
+#endif
 
 /*JSON{
     "type" : "staticmethod",
@@ -4538,7 +4551,7 @@ to select an application to launch.
     "type" : "staticmethod",
     "class" : "E",
     "name" : "showMenu",
-    "generate_js" : "libs/js/banglejs/E_showMenu.min.js",
+    "generate_js" : "libs/js/banglejs/E_showMenu_F18.min.js",
     "params" : [
       ["menu","JsVar","An object containing name->function mappings to to be used in a menu"]
     ],
@@ -4556,8 +4569,8 @@ var number = 50;
 // First menu
 var mainmenu = {
   "" : { "title" : "-- Main Menu --" },
-  "Backlight On" : function() { LED1.set(); },
-  "Backlight Off" : function() { LED1.reset(); },
+  "LED On" : function() { LED1.set(); },
+  "LED Off" : function() { LED1.reset(); },
   "Submenu" : function() { E.showMenu(submenu); },
   "A Boolean" : {
     value : boolean,
@@ -4675,6 +4688,49 @@ The second `options` argument can contain:
 */
 
 /*JSON{
+    "type" : "staticmethod",
+    "class" : "E",
+    "name" : "showScroller",
+    "generate_js" : "libs/js/banglejs/E_showScroller.min.js",
+    "params" : [
+      ["options","JsVar","An object containing `{ h, c, draw, select }` (see below) "]
+    ],
+    "return" : ["JsVar", "A menu object with `draw`, `move` and `select` functions" ],
+    "ifdef" : "BANGLEJS"
+}
+Display a scrollable menu on the screen, and set up the buttons/touchscreen to navigate through it
+and select items.
+
+Supply an object containing:
+
+```
+{
+  h : 24, // height of each menu item in pixels
+  c : 10, // number of menu items
+  // a function to draw a menu item
+  draw : function(idx, rect) { ... }
+  // a function to call when the item is selected
+  select : function(idx) { ... }
+}
+```
+
+For example to display a list of numbers:
+
+```
+E.showScroller({
+  h : 16, c : 50,
+  draw : (idx, r) => {
+    g.setBgColor((idx&1)?"#fff":"#ccc").clearRect(r.x,r.y,r.x+r.w-1,r.y+r.h-1);
+    g.setFont("6x8:2").drawString(idx,r.x+10,r.y);
+  },
+  select : (idx) => console.log("You selected ", idx)
+});
+```
+
+To remove the scroller, just call `E.showScroller()`
+*/
+
+/*JSON{
     "type" : "staticmethod", "class" : "E", "name" : "showMenu", "patch":true,
     "generate_js" : "libs/js/banglejs/E_showMenu_Q3.min.js",
     "#if" : "defined(BANGLEJS) && defined(BANGLEJS_Q3)"
@@ -4695,6 +4751,12 @@ The second `options` argument can contain:
 /*JSON{
     "type" : "staticmethod", "class" : "E", "name" : "showPrompt", "patch":true,
     "generate_js" : "libs/js/banglejs/E_showPrompt_Q3.min.js",
+    "#if" : "defined(BANGLEJS) && defined(BANGLEJS_Q3)"
+}
+*/
+/*JSON{
+    "type" : "staticmethod", "class" : "E", "name" : "showScroller", "patch":true,
+    "generate_js" : "libs/js/banglejs/E_showScroller_Q3.min.js",
     "#if" : "defined(BANGLEJS) && defined(BANGLEJS_Q3)"
 }
 */
@@ -4846,4 +4908,38 @@ of http://banglejs.com/apps
 void jswrap_banglejs_factoryReset() {
   jsfResetStorage();
   jsiStatus |= JSIS_TODO_FLASH_LOAD;
+}
+
+/*JSON{
+    "type" : "staticproperty",
+    "class" : "Bangle",
+    "name" : "appRect",
+    "generate" : "jswrap_banglejs_appRect",
+    "return" : ["JsVar","An object of the form `{x,y,w,h,x2,y2}`"],
+    "ifdef" : "BANGLEJS"
+}
+Returns the rectangle on the screen that is currently
+reserved for the app.
+*/
+JsVar *jswrap_banglejs_appRect() {
+  JsVar *o = jsvNewObject();
+  if (!o) return 0;
+  JsVar *graphics = jsvObjectGetChild(execInfo.hiddenRoot, JS_GRAPHICS_VAR, 0);
+  JsGraphics gfx;
+  if (!graphicsGetFromVar(&gfx, graphics)) {
+    gfx.data.width = LCD_WIDTH;
+    gfx.data.height = LCD_HEIGHT;
+  }
+  jsvUnLock(graphics);
+
+  JsVar *widgetsVar = jsvObjectGetChild(execInfo.root,"WIDGETS",0);
+  int y = widgetsVar ? 24 : 0;
+  jsvUnLock(widgetsVar);
+  jsvObjectSetChildAndUnLock(o,"x",jsvNewFromInteger(0));
+  jsvObjectSetChildAndUnLock(o,"y",jsvNewFromInteger(y));
+  jsvObjectSetChildAndUnLock(o,"w",jsvNewFromInteger(gfx.data.width));
+  jsvObjectSetChildAndUnLock(o,"h",jsvNewFromInteger(gfx.data.height-y));
+  jsvObjectSetChildAndUnLock(o,"x2",jsvNewFromInteger(gfx.data.width-1));
+  jsvObjectSetChildAndUnLock(o,"y2",jsvNewFromInteger(gfx.data.height-1));
+  return o;
 }
