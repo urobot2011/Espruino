@@ -27,7 +27,8 @@ info = {
 #     'CFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main',
 #     'LDFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main -nostartfiles',
      'DEFINES += -DNRF_SDH_BLE_GATT_MAX_MTU_SIZE=131', #59 77 131 104
-     'DEFINES += -DBLUETOOTH_NAME_PREFIX=\'"Magic3"\'',
+     'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES -DGRAPHICS_ANTIALIAS',
+     'DEFINES += -DBLUETOOTH_NAME_PREFIX=\'"ROCK"\'',
      'LDFLAGS += -Xlinker --defsym=LD_APP_RAM_BASE=0x2ec0',#2bf0 0x3058#37f8 0x3720
      'LDFLAGS += -Xlinker --defsym=LD_NOINIT_SIZE=0x1290',#2bf0 0x3058#37f8 0x3720
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
@@ -67,9 +68,9 @@ chip = {
 #  'page_size' : 4096,
 #  'pages' : save_code_pages,
 #  'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages + save_code_pages)*4) # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 0x100-0xe0=0x20, FS 2, code 96. Each page is 4 kb.
-  'address' : 0x60000000, # put this in external spiflash (see below)
+  'address' : 0x60100000, # put this in external spiflash (see below)
   'page_size' : 4096,
-  'pages' : 2048, # Entire 8MB of external flash
+  'pages' : 1024, # Entire 8MB of external flash
   'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
   },
 };
