@@ -6,13 +6,13 @@
 import pinutils;
 
 info = {
- 'name' : "ROCK",
+ 'name' : "Magic3",
  'link' :  [ "https://www.kospet.com/products/kospet-magic-3" ],
  'espruino_page_link' : 'Magic3',
  'default_console' : "EV_BLUETOOTH",
  'variables' : 14000-300, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
- 'binary_name' : 'espruino_%v_rock.hex',
+ 'binary_name' : 'espruino_%v_magic3.hex',
  'build' : {
    'optimizeflags' : '-Os',
    'libraries' : [
