@@ -50,7 +50,7 @@ info = {
  }
 };
 
-save_code_pages = 144; #96;
+save_code_pages = 20; #96;
 fstorage_pages = 10; # typically 2, 10 reduces risk of brick on first flash from stock FW
 chip = {
   'part' : "NRF52840",
@@ -65,14 +65,12 @@ chip = {
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
-#  'address' : ((0xf8 - fstorage_pages - save_code_pages) * 4096), # Bootloader at 0xF8000
-#  'page_size' : 4096,
-#  'pages' : save_code_pages,
-#  'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages + save_code_pages)*4) # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 0x100-0xe0=0x20, FS 2, code 96. Each page is 4 kb.
-  'address' : 0x60000000, # put this in external spiflash (see below)
+  'address' : ((0xf8 - fstorage_pages - save_code_pages) * 4096), # Bootloader at 0xF8000
   'page_size' : 4096,
-  'pages' : 2048, # Entire 8MB of external flash
-  'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages)*4) # Softdevice uses 31 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
+  'pages' : save_code_pages,
+  'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages + save_code_pages)*4), # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 0x100-0xe0=0x20, FS 2, code 96. Each page is 4 kb.
+  'address2' : 0x60000000, # put this in external spiflash (see below)
+  'pages2' : 2048, # Entire 8MB of external flash
   },
 };
 
