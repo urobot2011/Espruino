@@ -1470,11 +1470,14 @@ NO_INLINE JsVar *jspeExpressionOrArrowFunction() {
     }
     jsvUnLock(a);
     a = jspeAssignmentExpression();
-    if (!(jsvIsName(a) && jsvIsString(a))) allNames = false;
+    /* if we're not executing, `a` will always be undefined so
+      don't do the check for allNames - just assume all is good. We'll
+      properly check when we execute. */
+    if (JSP_SHOULD_EXECUTE && !(jsvIsName(a) && jsvIsString(a))) allNames = false;
     if (lex->tk!=')') JSP_MATCH_WITH_CLEANUP_AND_RETURN(',', jsvUnLock2(a,funcVar), 0);
   }
   JSP_MATCH_WITH_CLEANUP_AND_RETURN(')', jsvUnLock2(a,funcVar), 0);
-  // if arrow is found, create a function
+  // if all names inside brackets and an arrow is found, create a function
   if (allNames && lex->tk==LEX_ARROW_FUNCTION) {
     funcVar = jspeArrowFunction(funcVar, a);
     jsvUnLock(a);
@@ -2271,6 +2274,17 @@ NO_INLINE JsVar *jspeStatementSwitch() {
   return 0;
 }
 
+// Check whether we received a break/continue while parsing previously. Return true if we had a 'break;
+static NO_INLINE bool jspeCheckBreakContinue() {
+  if (execInfo.execute & EXEC_CONTINUE)
+    execInfo.execute = (execInfo.execute & ~EXEC_RUN_MASK) | EXEC_YES;
+  else if (execInfo.execute & EXEC_BREAK) {
+    execInfo.execute = (execInfo.execute & ~EXEC_RUN_MASK) | EXEC_YES;
+    return true;
+  }
+  return false;
+}
+
 NO_INLINE JsVar *jspeStatementDoOrWhile(bool isWhile) {
   JsVar *cond;
   bool loopCond = true; // true for do...while loops
@@ -2301,12 +2315,7 @@ NO_INLINE JsVar *jspeStatementDoOrWhile(bool isWhile) {
   jsvUnLock(jspeBlockOrStatement());
   if (!wasInLoop) execInfo.execute &= (JsExecFlags)~EXEC_IN_LOOP;
 
-  if (execInfo.execute & EXEC_CONTINUE)
-    execInfo.execute = (execInfo.execute & ~EXEC_RUN_MASK) | EXEC_YES;
-  else if (execInfo.execute & EXEC_BREAK) {
-    execInfo.execute = (execInfo.execute & ~EXEC_RUN_MASK) | EXEC_YES;
-    hasHadBreak = true; // fail loop condition, so we exit
-  }
+  hasHadBreak |= jspeCheckBreakContinue();
   if (!loopCond) JSP_RESTORE_EXECUTE();
 
   if (!isWhile) { // do..while loop
@@ -2340,12 +2349,7 @@ NO_INLINE JsVar *jspeStatementDoOrWhile(bool isWhile) {
       jspDebuggerLoopIfCtrlC();
       jsvUnLock(jspeBlockOrStatement());
       if (!wasInLoop) execInfo.execute &= (JsExecFlags)~EXEC_IN_LOOP;
-      if (execInfo.execute & EXEC_CONTINUE)
-        execInfo.execute = (execInfo.execute & ~EXEC_RUN_MASK) | EXEC_YES;
-      else if (execInfo.execute & EXEC_BREAK) {
-        execInfo.execute = (execInfo.execute & ~EXEC_RUN_MASK) | EXEC_YES;
-        hasHadBreak = true;
-      }
+      hasHadBreak |= jspeCheckBreakContinue();
     }
     loopCount++;
   }
@@ -2462,12 +2466,7 @@ NO_INLINE JsVar *jspeStatementFor() {
               jsvUnLock(jspeBlockOrStatement());
               if (!wasInLoop) execInfo.execute &= (JsExecFlags)~EXEC_IN_LOOP;
 
-              if (execInfo.execute & EXEC_CONTINUE)
-                execInfo.execute = EXEC_YES;
-              else if (execInfo.execute & EXEC_BREAK) {
-                execInfo.execute = EXEC_YES;
-                hasHadBreak = true;
-              }
+              hasHadBreak |= jspeCheckBreakContinue();
             }
           }
           jsvIteratorNext(&it);
@@ -2533,12 +2532,7 @@ NO_INLINE JsVar *jspeStatementFor() {
     jslCharPosNew(&forBodyEnd, lex->sourceVar, lex->tokenStart);
     if (!wasInLoop) execInfo.execute &= (JsExecFlags)~EXEC_IN_LOOP;
     if (loopCond || !JSP_SHOULD_EXECUTE) {
-      if (execInfo.execute & EXEC_CONTINUE)
-        execInfo.execute = EXEC_YES;
-      else if (execInfo.execute & EXEC_BREAK) {
-        execInfo.execute = EXEC_YES;
-        hasHadBreak = true;
-      }
+      hasHadBreak |= jspeCheckBreakContinue();
     }
     if (!loopCond) JSP_RESTORE_EXECUTE();
     if (loopCond) {
@@ -2565,12 +2559,7 @@ NO_INLINE JsVar *jspeStatementFor() {
         jspDebuggerLoopIfCtrlC();
         jsvUnLock(jspeBlockOrStatement());
         if (!wasInLoop) execInfo.execute &= (JsExecFlags)~EXEC_IN_LOOP;
-        if (execInfo.execute & EXEC_CONTINUE)
-          execInfo.execute = EXEC_YES;
-        else if (execInfo.execute & EXEC_BREAK) {
-          execInfo.execute = EXEC_YES;
-          hasHadBreak = true;
-        }
+        hasHadBreak |= jspeCheckBreakContinue();
       }
       if (JSP_SHOULD_EXECUTE && loopCond && !hasHadBreak) {
         jslSeekToP(&forIterStart);
