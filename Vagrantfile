@@ -4,7 +4,7 @@ Vagrant.configure(2) do |config|
 
   # Ubuntu Server
   config.vm.define "headless", primary: true do |headless|
-    headless.vm.box = "ubuntu/trusty64"
+    headless.vm.box = "bento/ubuntu-16.04"
   end
 
   ## FOLDER ##

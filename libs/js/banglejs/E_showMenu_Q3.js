@@ -21,8 +21,14 @@
     y += 22;
   var loc = require("locale");
   var l = {
-    lastIdx : 0,
-    draw : function(rowmin,rowmax) {
+    draw : function() {
+      g.reset();
+      g.setColor(cFg);
+      g.setFont('Vector',18).setFontAlign(0,-1,0);
+      if (options.title) {
+        g.drawString(options.title,(x+x2)/2,y-options.fontHeight-2);
+        g.drawLine(x,y-2,x2,y-2);
+      }
       var rows = 0|Math.min((y2-y) / options.fontHeight,menuItems.length);
       var idx = E.clip(options.selected-(rows>>1),0,menuItems.length-rows);
       if (idx!=l.lastIdx) rowmin=undefined; // redraw all if we scrolled
@@ -56,7 +62,6 @@
           var xo = x2;
           var v = item.value;
           if (item.format) v=item.format(v);
-          v = loc.translate(""+v);
           if (l.selectEdit && idx==options.selected) {
             xo -= 24 + 1;
             g.setColor(g.theme.bgH).fillRect(xo-(g.stringWidth(v)+4),iy,x2,iy+options.fontHeight-1);
@@ -102,10 +107,28 @@
       }
     }
   };
+  var selbut = -1;
+  var butdefs = [{x1:8,y1:150,x2:44,y2:175,poly:[8,175,26,150,44,175]},
+                 {x1:69,y1:150,x2:105,y2:175,poly:[69,150,105,150,69,175,105,175]},
+                 {x1:130,y1:150,x2:166,y2:175,poly:[130,150,166,150,148,175]}];
+  var drawButton = function(d,sel){
+       (sel?g.setColor(3):g.setColor(1)).fillRect(d.x1,d.y1,d.x2,d.y2);
+       g.setColor(-1).fillPoly(d.poly).flip();
+  };
+  for(var i=0;i<3;i++)drawButton(butdefs[i],false);
+  var isPressed = function(p,n) {
+      var d = butdefs[n];
+      var bb = (p.x>d.x1 && p.x<d.x2 && p.y>130);
+      if (bb) {selbut=n; drawButton(d,true);setTimeout(()=>{drawButton(d,false);},150);}
+      return bb;
+  };
+  Bangle.buttons = function(p){
+    if (isPressed(p,0)) l.move(-1);
+    else if (isPressed(p,1)) l.select(); 
+    else if (isPressed(p,2)) l.move(1);
+    else selbut=-1;
+  };
   l.draw();
-  Bangle.setUI("updown",dir => {
-    if (dir) l.move(dir);
-    else l.select();
-  });
+  E.on("touch",Bangle.buttons);
   return l;  
 })
