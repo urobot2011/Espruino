@@ -468,6 +468,41 @@ short FFT(short int dir,long m,FFTDATATYPE *x,FFTDATATYPE *y)
 }
 
 /*JSON{
+    "type" : "staticmethod",
+    "class" : "E",
+    "name" : "project",
+    "generate" : "jswrap_espruino_project",
+    "params" : [
+      ["latlong","JsVar","`{lat:..., lon:...}`"]
+    ],
+    "return" : ["JsVar","{x:..., y:...}"]
+}
+Perform a Spherical [Web Mercator projection](https://en.wikipedia.org/wiki/Web_Mercator_projection)
+of latitude and longitude into `x` and `y` coordinates, which are roughly
+equivalent to meters from `{lat:0,lon:0}`.
+
+This is the formula used for most online mapping and is a good way
+to compare GPS coordinates to work out the distance between them.
+*/
+JsVar *jswrap_espruino_project(JsVar *latlong) {
+  const double degToRad = PI / 180; // degree to radian conversion
+  const double latMax = 85.0511287798; // clip latitude to sane values
+  const double R = 6378137; // earth radius in m
+  double lat = jsvGetFloatAndUnLock(jsvObjectGetChild(latlong,"lat",0));
+  double lon = jsvGetFloatAndUnLock(jsvObjectGetChild(latlong,"lon",0));
+  if (lat > latMax) lat=latMax;
+  if (lat < -latMax) lat=-latMax;
+  double s = sin(lat * degToRad);
+  JsVar *o = jsvNewObject();
+  if (o) {
+    jsvObjectSetChildAndUnLock(o,"x", jsvNewFromFloat(R * lon * degToRad));
+    jsvObjectSetChildAndUnLock(o,"y", jsvNewFromFloat(R * log((1 + s) / (1 - s)) / 2));
+  }
+  return o;
+}
+
+
+/*JSON{
   "type" : "staticmethod",
   "ifndef" : "SAVE_ON_FLASH",
   "class" : "E",
