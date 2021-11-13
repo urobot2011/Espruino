@@ -28,7 +28,7 @@ info = {
 # 'default_console_baudrate' : "38400",
  'variables' : 2565, # SD5.0 0x200014B8 SD 3.0 0x200019C0  How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
- 'binary_name' : 'espruino_%v_p8_SDK12_SD30_SPIFLASH.hex',
+ 'binary_name' : 'espruino_%v_p8.hex',
  'build' : {
    'optimizeflags' : '-Os',
    'libraries' : [
@@ -55,6 +55,7 @@ info = {
 };
 
 
+save_code_pages = 20; 
 chip = {
   'part' : "NRF52832",
   'family' : "NRF52",
@@ -68,15 +69,15 @@ chip = {
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
-    'page_size' : 4096,
-#    'address' : ((118 - 20) * 4096), # Bootloader takes pages 120-127, FS takes 118-119
-#    'pages' : 20,
-#    'flash_available' : 512 - ((31 + 8 + 2 + 20)*4) # Softdevice 2.0 uses 28 pages of flash, bootloader 8, FS 2, code 10. Each page is 4 kb.
-    'address' : 0x60000000,
-    'pages' : 1024, #  use all of flash
-    'flash_available' : 512 - ((31 + 8 + 2 + 0)*4) # Softdevice 5.0  uses 35 pages of flash, bootloader 8, FS 2, no code. Each page is 4 kb.
-  },
+  'address' : ((118 - save_code_pages) * 4096), # Bootloader at 0xF8000
+  'page_size' : 4096,
+  'pages' : save_code_pages,
+  'flash_available' : 512 - ((35 + 8 + 2 + save_code_pages)*4), # Softdevice 5.0  uses 35 pages of flash, bootloader 8, FS 2. Each page is 4 kb.  
+  'address2' : 0x60000000, # put this in external spiflash (see below)
+  'pages2' : 1024, # Entire 4MB of external flash
+   },
 };
+
 
 devices = {
  'BTN1' : { 'pin' : 'D17', 'pinstate' : 'IN_PULLDOWN' },
