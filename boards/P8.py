@@ -90,11 +90,6 @@ devices = {
 #  'LED3' : { 'pin' : 'D19' }, # Pin negated in software
 #  'LED4' : { 'pin' : 'D20' }, # Pin negated in software
   # Pin D22 is used for clock when driving neopixels - as not specifying a pin seems to break things
-  'VIBRATE' : { 'pin' : 'D16' }, # Pin negated in software
-  'BAT' : {
-            'pin_charging' : 'D19', # inverted
-            'pin_voltage' : 'D31'
-          },
 
   'SPIFLASH' : {
             'pin_sck' : 'D2',
