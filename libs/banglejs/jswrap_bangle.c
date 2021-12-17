@@ -3551,7 +3551,6 @@ bool jswrap_banglejs_idle() {
       jsvUnLock(o);
 #endif
     }
-#endif
   }
 #ifdef TOUCH_DEVICE
   if (bangleTasks & JSBT_DRAG) {
