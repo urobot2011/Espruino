@@ -2235,13 +2235,18 @@ void jshI2CRead(IOEventFlags device, unsigned char address, int nBytes, unsigned
 bool jshFlashWriteProtect(uint32_t addr) {
   // allow protection to be overwritten
   if (jsfGetFlag(JSF_UNSAFE_FLASH)) return false;
-#if defined(PUCKJS) || defined(PIXLJS) || defined(MDBT42Q) || defined(BANGLEJS)
-  /* It's vital we don't let anyone screw with the softdevice or bootloader.
-   * Recovering from changes would require soldering onto SWDIO and SWCLK pads!
-   */
+/* It's vital we don't let anyone screw with the softdevice or bootloader.
+ * Recovering from changes would require soldering onto SWDIO and SWCLK pads!
+ */
+#if defined(PUCKJS) || defined(PIXLJS) || defined(MDBT42Q) || defined(BANGLEJS_F18)
   if (addr<0x1f000) return true; // softdevice
   if (addr>=0x78000 && addr<0x80000) return true; // bootloader
 #endif
+#if defined(BANGLEJS_Q3)
+  if (addr<0x26000) return true; // softdevice
+  if (addr>=0xF7000 && addr<0x100000) return true; // bootloader
+#endif
+  // TODO: make these use constants from the nRF52 SDK?
   return false;
 }
 
@@ -2441,20 +2446,45 @@ void jshFlashWrite(void * buf, uint32_t addr, uint32_t len) {
       uint32_t pageOffset = addr & 255;
       uint32_t bytesLeftInPage = 256-pageOffset;
       if (l>bytesLeftInPage) l=bytesLeftInPage;
-      // WREN
-      b[0] = 0x06;
-      spiFlashWriteCS(b,1);
-      // Write
-      b[0] = 0x02;
-      b[1] = addr>>16;
-      b[2] = addr>>8;
-      b[3] = addr;
-      nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-      spiFlashWrite(b,4);
-      spiFlashWrite(bufPtr,l);
-      nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
-      // Check busy
-      WAIT_UNTIL(!(spiFlashStatus()&1), "jshFlashWrite");
+
+      int retries = 3;
+      while (retries>0) {
+        // WREN
+        b[0] = 0x06;
+        spiFlashWriteCS(b,1);
+        // Write
+        b[0] = 0x02;
+        b[1] = addr>>16;
+        b[2] = addr>>8;
+        b[3] = addr;
+        nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+        spiFlashWrite(b,4);
+        spiFlashWrite(bufPtr,l);
+        nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+        // Check busy
+        WAIT_UNTIL(!(spiFlashStatus()&1), "jshFlashWrite");
+        // Now read first 4 bytes to ensure write completed ok
+        // https://github.com/espruino/Espruino/issues/2109
+        b[0] = 0x03;
+        b[1] = addr>>16;
+        b[2] = addr>>8;
+        b[3] = addr;
+        nrf_gpio_pin_clear((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+        spiFlashWrite(b,4);
+        spiFlashRead(b,l<4?l:4);
+        nrf_gpio_pin_set((uint32_t)pinInfo[SPIFLASH_PIN_CS].pin);
+        //
+        if (b[0]!=bufPtr[0] || (l>1 && b[1]!=bufPtr[1]) ||
+           (l>2 && b[2]!=bufPtr[2]) || (l>3 && b[3]!=bufPtr[3])) {
+          retries--; // byte is still erased - try again
+          jshDelayMicroseconds(50); // wait a bit before we have another go
+        } else retries=-1; // all ok, exit now
+      };
+      if (!retries) {
+        jsiConsolePrintf("FW addr 0x%08x fail\n", addr);
+        jsiConsolePrintf("Status %d\n", spiFlashStatus());
+      }
+
       // go to next chunk
       len -= l;
       addr += l;

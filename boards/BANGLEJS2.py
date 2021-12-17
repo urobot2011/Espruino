@@ -52,7 +52,7 @@ info = {
      'DEFINES+=-DBLUETOOTH_NAME_PREFIX=\'"Bangle.js"\'',
      'DEFINES+=-DCUSTOM_GETBATTERY=jswrap_banglejs_getBattery',
      'DEFINES+=-DDUMP_IGNORE_VARIABLES=\'"g\\0"\'',
-     'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES',
+     'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES -DGRAPHICS_ANTIALIAS',
      'DEFINES+=-DNO_DUMP_HARDWARE_INITIALISATION', # don't dump hardware init - not used and saves 1k of flash
      'DEFINES += -DESPR_NO_LINE_NUMBERS=1', # we execute mainly from flash, so line numbers can be worked out
      'INCLUDE += -I$(ROOT)/libs/banglejs -I$(ROOT)/libs/misc',
@@ -67,7 +67,8 @@ info = {
      'WRAPPERSOURCES += libs/misc/jswrap_unistroke.c',
      'DEFINES += -DESPR_BANGLE_UNISTROKE=1',
      'SOURCES += libs/banglejs/banglejs2_storage_default.c',
-     'DEFINES += -DESPR_STORAGE_INITIAL_CONTENTS=1', # 
+     'DEFINES += -DESPR_STORAGE_INITIAL_CONTENTS=1', # use banglejs2_storage_default
+     'DEFINES += -DESPR_USE_STORAGE_CACHE=32', # Add a 32 entry cache to speed up finding files
      'JSMODULESOURCES += libs/js/banglejs/locale.min.js',
 
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6',

@@ -676,6 +676,8 @@ typedef struct {
 HealthState healthCurrent;
 /// Health info during the last period, used when firing a health event
 HealthState healthLast;
+/// Health data so far this day
+HealthState healthDaily;
 
 /// Promise when beep is finished
 JsVar *promiseBeep;
@@ -1180,6 +1182,7 @@ void peripheralPollHandler() {
       if (newSteps>0) {
         stepCounter += newSteps;
         healthCurrent.stepCount += newSteps;
+        healthDaily.stepCount += newSteps;
         bangleTasks |= JSBT_STEP_EVENT;
         jshHadEvent();
       }
@@ -1250,17 +1253,27 @@ void peripheralPollHandler() {
 
   // Health tracking
   // Did we enter a new 10 minute interval?
-  uint8_t healthIndex = (uint8_t)(jshGetMillisecondsFromTime(time)/HEALTH_INTERVAL);
+  JsVarFloat msecs = jshGetMillisecondsFromTime(time);
+  uint8_t healthIndex = (uint8_t)(msecs/HEALTH_INTERVAL);
   if (healthIndex != healthCurrent.index) {
     // we did - fire 'Bangle.health' event
     healthLast = healthCurrent;
     healthStateClear(&healthCurrent);
     healthCurrent.index = healthIndex;
     bangleTasks |= JSBT_HEALTH;
+    // What if we've changed day?
+    TimeInDay td = getTimeFromMilliSeconds(msecs, false/*forceGMT*/);
+    uint8_t dayIndex = (uint8_t)td.daysSinceEpoch;
+    if (dayIndex != healthDaily.index) {
+      healthStateClear(&healthCurrent);
+      healthDaily.index = dayIndex;
+    }
   }
   // Update latest health info
   healthCurrent.movement += accDiff;
   healthCurrent.movementSamples++;
+  healthDaily.movement += accDiff;
+  healthDaily.movementSamples++;
 
   // we're done, ensure we clear I2C flag
   i2cBusy = false;
@@ -1274,6 +1287,10 @@ static void hrmHandler(int ppgValue) {
     if (hrmInfo.confidence >= healthCurrent.bpmConfidence) {
       healthCurrent.bpmConfidence = hrmInfo.confidence;
       healthCurrent.bpm10 = hrmInfo.bpm10;
+    }
+    if (hrmInfo.confidence >= healthDaily.bpmConfidence) {
+      healthDaily.bpmConfidence = hrmInfo.confidence;
+      healthDaily.bpm10 = hrmInfo.bpm10;
     }
     jshHadEvent();
   }
@@ -2128,7 +2145,7 @@ JsVarInt jswrap_banglejs_getBattery() {
   JsVarFloat v = jshPinAnalog(BAT_PIN_VOLTAGE);
 #ifdef BANGLEJS_Q3
   const JsVarFloat vlo = 0.246;
-  const JsVarFloat vhi = 0.317;
+  const JsVarFloat vhi = 0.3144; // on some watches this is 100%, on others it's s a bit higher
 #elif defined(BANGLEJS_F18)
   const JsVarFloat vlo = 0.51;
   const JsVarFloat vhi = 0.62;
@@ -2632,9 +2649,21 @@ JsVar *jswrap_banglejs_getAccel() {
     "class" : "Bangle",
     "name" : "getHealthStatus",
     "generate" : "jswrap_banglejs_getHealthStatus",
-    "return" : ["JsVar","Returns an object containing various health info - see below"],
+    "return" : ["JsVar","Returns an object containing various health info"],
+    "params" : [
+      ["range","JsVar","What time period to return data for, see below:"]
+    ],
     "ifdef" : "BANGLEJS"
 }
+
+`range` is one of:
+
+* `undefined` or `'current'` - health data so far in the last 10 minutes is returned,
+* `'last'` - health data during the last 10 minutes
+* `'day'` - the health data so far for the day
+
+
+`getHealthStatus` returns an object containing:
 
 * `movement` is the 32 bit sum of all `acc.diff` readings since power on (and rolls over). It is the difference in accelerometer values as `g*8192`
 * `steps` is the number of steps during this period
@@ -2655,8 +2684,15 @@ static JsVar *_jswrap_banglejs_getHealthStatusObject(HealthState *health) {
   }
   return o;
 }
-JsVar *jswrap_banglejs_getHealthStatus() {
-  return _jswrap_banglejs_getHealthStatusObject(&healthCurrent);
+JsVar *jswrap_banglejs_getHealthStatus(JsVar *range) {
+  if (jsvIsUndefined(range) || jsvIsStringEqual(range,"10min"))
+    return _jswrap_banglejs_getHealthStatusObject(&healthCurrent);
+  if (jsvIsStringEqual(range,"last"))
+      return _jswrap_banglejs_getHealthStatusObject(&healthLast);
+  if (jsvIsStringEqual(range,"day"))
+    return _jswrap_banglejs_getHealthStatusObject(&healthDaily);
+  jsExceptionHere(JSET_ERROR, "Unknown range name %q", range);
+  return 0;
 }
 
 /* After init is called (a second time, NOT first time), we execute any JS that is due to be executed,
@@ -2799,6 +2835,7 @@ NO_INLINE void jswrap_banglejs_init() {
     accDiff = 0;
     healthStateClear(&healthCurrent);
     healthStateClear(&healthLast);
+    healthStateClear(&healthDaily);
   } 
   bangleFlags |= JSBF_POWER_SAVE; // ensure we turn power-save on by default every restart
   inactivityTimer = 0; // reset the LCD timeout timer
@@ -3900,6 +3937,46 @@ JsVar *jswrap_banglejs_compassRd(JsVarInt reg, JsVarInt cnt) {
 #endif
 }
 
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "Bangle",
+    "name" : "hrmWr",
+    "generate" : "jswrap_banglejs_hrmWr",
+    "params" : [
+      ["reg","int",""],
+      ["data","int",""]
+    ],
+    "ifdef" : "BANGLEJS_Q3"
+}
+Writes a register on the Heart rate monitor
+*/
+void jswrap_banglejs_hrmWr(JsVarInt reg, JsVarInt data) {
+#ifdef HRM_I2C
+  _jswrap_banglejs_i2cWr(HRM_I2C, HEARTRATE_ADDR, reg, data);
+#endif
+}
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "Bangle",
+    "name" : "hrmRd",
+    "generate" : "jswrap_banglejs_hrmRd",
+    "params" : [
+      ["reg","int",""],
+      ["cnt","int","If specified, returns an array of the given length (max 128). If not (or 0) it returns a number"]
+    ],
+    "return" : ["JsVar",""],
+    "ifdef" : "BANGLEJS"
+}
+Read a register on the Heart rate monitor
+*/
+JsVar *jswrap_banglejs_hrmRd(JsVarInt reg, JsVarInt cnt) {
+#ifdef HRM_I2C
+  return _jswrap_banglejs_i2cRd(HRM_I2C, HEARTRATE_ADDR, reg, cnt);
+#else
+  return 0;
+#endif
+}
 
 /*JSON{
     "type" : "staticmethod",
@@ -3926,7 +4003,6 @@ void jswrap_banglejs_ioWr(JsVarInt mask, bool on) {
 #endif
 }
 #endif
-
 
 /*JSON{
     "type" : "staticmethod",
@@ -4273,6 +4349,7 @@ static void jswrap_banglejs_periph_off() {
 #endif
   jshPinOutput(VIBRATE_PIN,0); // vibrate off
   //jswrap_banglejs_setLCDPower calls JS events (and sometimes timers), so avoid it and manually turn controller + backlight off:
+  jswrap_banglejs_setLocked(1); // disable touchscreen if we have one
   jswrap_banglejs_setLCDPowerController(0);
   jswrap_banglejs_pwrBacklight(0);
 #ifdef ACCEL_DEVICE_KX023
@@ -4559,7 +4636,7 @@ with `g.clear()`.
 */
 /*JSON{
     "type" : "staticmethod", "class" : "Bangle", "name" : "drawWidgets", "patch":true,
-    "generate_js" : "libs/js/banglejs/Bangle_drawWidgets_Q3.js",
+    "generate_js" : "libs/js/banglejs/Bangle_drawWidgets_Q3.min.js",
     "#if" : "defined(BANGLEJS) && defined(BANGLEJS_Q3)"
 }
 */
@@ -4746,10 +4823,10 @@ For example to display a list of numbers:
 
 ```
 E.showScroller({
-  h : 16, c : 50,
+  h : 40, c : 8,
   draw : (idx, r) => {
     g.setBgColor((idx&1)?"#fff":"#ccc").clearRect(r.x,r.y,r.x+r.w-1,r.y+r.h-1);
-    g.setFont("6x8:2").drawString(idx,r.x+10,r.y);
+    g.setFont("6x8:2").drawString("Item Number\n"+idx,r.x+10,r.y+4);
   },
   select : (idx) => console.log("You selected ", idx)
 });
@@ -4961,13 +5038,31 @@ JsVar *jswrap_banglejs_appRect() {
   jsvUnLock(graphics);
 
   JsVar *widgetsVar = jsvObjectGetChild(execInfo.root,"WIDGETS",0);
-  int y = widgetsVar ? 24 : 0;
+  int top = 0, btm = 0; // size of various widget areas
+  // check all widgets and see if any are in the top or bottom areas,
+  // set top/btm accordingly
+  if (jsvIsObject(widgetsVar)) {
+    JsvObjectIterator it;
+    jsvObjectIteratorNew(&it, widgetsVar);
+    while (jsvObjectIteratorHasValue(&it)) {
+      JsVar *widget = jsvObjectIteratorGetValue(&it);
+      JsVar *area = jsvObjectGetChild(widget, "area", 0);
+      if (jsvIsString(area)) {
+        char a = jsvGetCharInString(area, 0);
+        if (a=='t') top=24;
+        if (a=='b') btm=24;
+      }
+      jsvUnLock2(area,widget);
+      jsvObjectIteratorNext(&it);
+    }
+    jsvObjectIteratorFree(&it);
+  }
   jsvUnLock(widgetsVar);
   jsvObjectSetChildAndUnLock(o,"x",jsvNewFromInteger(0));
-  jsvObjectSetChildAndUnLock(o,"y",jsvNewFromInteger(y));
+  jsvObjectSetChildAndUnLock(o,"y",jsvNewFromInteger(top));
   jsvObjectSetChildAndUnLock(o,"w",jsvNewFromInteger(gfx.data.width));
-  jsvObjectSetChildAndUnLock(o,"h",jsvNewFromInteger(gfx.data.height-y));
+  jsvObjectSetChildAndUnLock(o,"h",jsvNewFromInteger(gfx.data.height-(top+btm)));
   jsvObjectSetChildAndUnLock(o,"x2",jsvNewFromInteger(gfx.data.width-1));
-  jsvObjectSetChildAndUnLock(o,"y2",jsvNewFromInteger(gfx.data.height-1));
+  jsvObjectSetChildAndUnLock(o,"y2",jsvNewFromInteger(gfx.data.height-(1+btm)));
   return o;
 }
