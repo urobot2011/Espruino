@@ -1,4 +1,4 @@
-            Bangle.js: Enable the Bangle.on('tap') event from the accelerometer by default
+     2v11 : Bangle.js: Enable the Bangle.on('tap') event from the accelerometer by default
             Bangle.js: revert to (better) Kionix default thresholds for tap detect
             Bangle.js 2: When wake on touch is enabled, use a single tap on the front of the device for wakeup
             Bangle.js: Display 'checking storage' message on first boot to alert users to slight delay
@@ -79,6 +79,32 @@
             Bangle.js2: Add Unistroke object, and 'Bangle.stroke' event
             Fix pretokenised '1 / /.../' and ensure jslSeek resets the previous token (ref #2086)
             nRF52: Move neopixel LRCK pin which can't be disabled due to hardware errata, and restore state after (fix #2071)
+            Bangle.js2: Disable unboard flash bank for now (issues with erase on reboot)
+            Bangle.js1: Fix E.showScroller implementation
+            Bangle.js2: Ensure tap and twist turn LCD backlight on as well as unlocking
+            Bangle.js1: Bangle.setUI now deletes touchHandler (fix #2095)
+            Bangle.js2: Tweak battery high mark again
+            Bangle.js2: Fix E.showScroller when there are less than 3 menu items
+            Bangle.js2: Bangle.off and .softOff now turn off touchscreen if it was on 
+            Bangle.js2: Ensure antialiased line routines are built in
+            Bangle.js2: Add HRM wear detection (LED no longer turns on if HRM not on skin)
+            Bangle.js2: Add a 32 entry cache to speed up finding common files - improves app load times
+            Bangle.js: Ensure locale honours 12 hour setting (https://github.com/espruino/BangleApps/issues/892)
+            Bangle.js2: Ensure EXTCOMIN time for LCD is nearer 2us (from datasheet) (ref #2097)
+            Bangle.js2: New default JS firmware
+            Bangle.js2: Minify Bangle.drawWidgets
+            Bangle.js: Bangle.appRect now copes with widgets at the bottom
+            Bangle.js2: Fix >128 ASCII codes for 12x20 font (fix #2105)
+            Bangle.js: Add SPI flash read-after-write to verify write succeeded (fix #2109)
+            Bangle.js: Fix E.showMenu clear if background color is set (https://github.com/espruino/BangleApps/issues/1024)
+            Bangle.js: Re-add E.showMenu predraw callback (fix #2108)
+            Bangle.js2: Add hrmRd/hrmWr that allow you to poke the HRM directly
+            Bangle.js: Fix for previous SPI flash write verify when <4 bytes written
+            Bangle.js2: Add write protection for bootloader and softdevice to avoid accidental bricking
+            Bangle.js2: Bootloader now attempts multiple times to initialise ext flash, and waits longer (fix fw update app issues)
+            Bangle.js: Add Bangle.getHealthStatus("day") to allow automatic step counts for the current day
+            Remove for(of/in) for extremely constrained devices (Micro:bit 1 only)
+            Bangle.js: bootloader now doesn't start immediately after power off (can help with 100% flat battery)
             
      2v10 : Bangle.js: Improved HRM calculations - swapped autocorrelation for bandpass filter
             Bangle.js: Significantly improved step counting algorithm using bandpass filter (fix #1846)
