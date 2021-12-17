@@ -85,7 +85,7 @@ devices = {
 #  'BTN2' : { 'pin' : 'D14', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
 #  'BTN3' : { 'pin' : 'D15', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
 #  'BTN4' : { 'pin' : 'D16', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
-  'LED1' : { 'pin' : 'D27' },
+#  'LED1' : { 'pin' : 'D27' },
 #  'LED2' : { 'pin' : 'D18' }, # Pin negated in software
 #  'LED3' : { 'pin' : 'D19' }, # Pin negated in software
 #  'LED4' : { 'pin' : 'D20' }, # Pin negated in software
