@@ -50,7 +50,10 @@ info = {
      'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'NRF_BL_DFU_INSECURE=1',
-     'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0x8C,0x91'
+     'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0x8C,0x91',
+          'INCLUDE += -I$(ROOT)/libs/misc',
+     'WRAPPERSOURCES += libs/misc/jswrap_stepcount.c',
+     'SOURCES += libs/misc/stepcount.c'
    ]
  }
 };
@@ -81,8 +84,8 @@ chip = {
 
 
 devices = {
- 'BTN1' : { 'pin' : 'D17', 'pinstate' : 'IN_PULLDOWN' },
-#  'BTN2' : { 'pin' : 'D14', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
+ 'BTN1' : { 'pin' : 'D9'},
+ 'BTN2' : { 'pin' : 'D17', 'pinstate' : 'IN_PULLUP' }, 
 #  'BTN3' : { 'pin' : 'D15', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
 #  'BTN4' : { 'pin' : 'D16', 'pinstate' : 'IN_PULLDOWN' }, # Pin negated in software
 #  'LED1' : { 'pin' : 'D27' },
