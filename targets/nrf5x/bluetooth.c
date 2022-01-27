@@ -743,8 +743,11 @@ uint8_t match_request : 1;               If 1 requires the application to report
       case BLEP_ANCS_APP_ATTR:
         ble_ancs_handle_app_attr(blep, (char *)buffer, bufferLen);
         break;
-      case BLEP_AMS_UPDATE:
-        ble_ams_handle_update(blep, data, (char *)buffer, bufferLen);
+      case BLEP_AMS_TRACK_UPDATE:
+        ble_ams_handle_track_update(blep, data, (char *)buffer, bufferLen);
+        break;
+      case BLEP_AMS_PLAYER_UPDATE:
+        ble_ams_handle_player_update(blep, data, (char *)buffer, bufferLen);
         break;
       case BLEP_AMS_ATTRIBUTE:
         ble_ams_handle_attribute(blep, (char *)buffer, bufferLen);
@@ -1141,7 +1144,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context) {
       p_ble_evt->header.evt_id != BLE_EVT_TX_COMPLETE)
     jsiConsolePrintf("[%d %d]\n", p_ble_evt->header.evt_id, p_ble_evt->evt.gattc_evt.params.hvx.handle );*/
 #if ESPR_BLUETOOTH_ANCS
-  if (bleStatus & BLE_ANCS_INITED)
+  if (bleStatus & BLE_ANCS_OR_AMS_INITED)
     ble_ancs_on_ble_evt(p_ble_evt);
 #endif
     uint32_t err_code;
@@ -1718,6 +1721,7 @@ static void fds_evt_handler(fds_evt_t const * const p_evt)
 static void pm_evt_handler(pm_evt_t const * p_evt) {
     ret_code_t err_code;
 
+    //jsiConsolePrintf("PM [%d]\n", p_evt->evt_id );
     switch (p_evt->evt_id)
     {
         case PM_EVT_BONDED_PEER_CONNECTED:
@@ -1779,7 +1783,7 @@ static void pm_evt_handler(pm_evt_t const * p_evt) {
                 //      You should check on what kind of white list policy your application should use.
             }
 #if ESPR_BLUETOOTH_ANCS
-            if (bleStatus & BLE_ANCS_INITED)
+            if (bleStatus & BLE_ANCS_OR_AMS_INITED)
               ble_ancs_bonding_succeeded(p_evt->conn_handle);
 #endif
 
@@ -1967,7 +1971,7 @@ static void gap_params_init() {
     // not null terminated
 #endif
 
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&sec_mode);
+    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&sec_mode); // don't allow device name change via BLE
     err_code = sd_ble_gap_device_name_set(&sec_mode,
                                           (const uint8_t *)deviceName,
                                           len);
@@ -2074,6 +2078,9 @@ void jsble_update_security() {
   JsVar *options = jsvObjectGetChild(execInfo.hiddenRoot, BLE_NAME_SECURITY, 0);
   if (jsvIsObject(options)) {
     JsVar *v;
+    if (jsvGetBoolAndUnLock(jsvObjectGetChild(options, "encryptUart", 0)))
+      encryptUart = true;
+    // Check for passkey
     uint8_t passkey[BLE_GAP_PASSKEY_LEN+1];
     memset(passkey, 0, sizeof(passkey));
     v = jsvObjectGetChild(options, "passkey", 0);
@@ -2371,9 +2378,11 @@ static void services_init() {
 #endif
 #if ESPR_BLUETOOTH_ANCS
     bool useANCS = jsvGetBoolAndUnLock(jsvObjectGetChild(execInfo.hiddenRoot, BLE_NAME_ANCS, 0));
-    if (useANCS) {
+    bool useAMS = jsvGetBoolAndUnLock(jsvObjectGetChild(execInfo.hiddenRoot, BLE_NAME_AMS, 0));
+    if (useANCS || useAMS) {
+      if (useANCS) bleStatus |= BLE_ANCS_INITED;
+      if (useAMS) bleStatus |= BLE_AMS_INITED;
       ble_ancs_init();
-      bleStatus |= BLE_ANCS_INITED;
     }
 #endif
 }
@@ -2706,8 +2715,8 @@ bool jsble_kill() {
   // BLE HID doesn't need deinitialising (no ble_hids_kill)
   bleStatus &= ~BLE_HID_INITED;
 #if ESPR_BLUETOOTH_ANCS
-  // BLE ANCS doesn't need deinitialising
-  bleStatus &= ~BLE_ANCS_INITED;
+  // BLE ANCS/AMS doesn't need deinitialising
+  bleStatus &= ~BLE_ANCS_OR_AMS_INITED;
 #endif
   uint32_t err_code;
 #if NRF_SD_BLE_API_VERSION < 5
@@ -2981,6 +2990,22 @@ void jsble_set_services(JsVar *data) {
 /// Disconnect from the given connection
 uint32_t jsble_disconnect(uint16_t conn_handle) {
   return sd_ble_gap_disconnect(conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+}
+
+void jsble_startBonding(bool forceRePair) {
+#if PEER_MANAGER_ENABLED
+  if (!jsble_has_peripheral_connection())
+      return bleCompleteTaskFailAndUnLock(BLETASK_BONDING, jsvNewFromString("Not connected"));
+
+  uint32_t err_code = pm_conn_secure(m_peripheral_conn_handle, forceRePair);
+  JsVar *errStr = jsble_get_error_string(err_code);
+  if (errStr) {
+    bleCompleteTaskFail(BLETASK_BONDING, errStr);
+    jsvUnLock(errStr);
+  }
+#else
+  return bleCompleteTaskFailAndUnLock(BLETASK_BONDING, jsvNewFromString("Peer Manager not compiled in"));
+#endif
 }
 
 #if BLE_HIDS_ENABLED

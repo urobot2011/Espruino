@@ -1,3 +1,31 @@
+            nRF52840: Flow control XOFF is now sent at only 3/8th full - delays in BLE mean we can sometimes fill our 1k input buffer otherwise
+            __FILE__ is now set correctly for apps (fixes 2v11 regression)
+            Bangle.js: Ensure Bangle.getHealthStatus("day") resets at midnight (fix https://github.com/espruino/BangleApps/issues/1216)
+            Bangle.js: Attempt to fix Bangle.buzz that occasionally doesn't stop
+            Bangle.js2: Lower bootloader LCD SPI bitrate (was out of spec, not all LCDs worked with it)
+            Bangle.js: Attempt to fix occasional issue where vibration gets stuck on (fix https://github.com/espruino/BangleApps/issues/1249)
+            Bangle.js: Ensure Bangle.setLCDPower only fires lcdPower event if state has changed (fix https://github.com/espruino/BangleApps/issues/1138)
+            Bangle.js2: Holding BTN at boot skips bootloader storage check, bootloader now times out if too many files
+            Bangle.js: Move position of filesystem checks to before first code is run
+            Storage.write is now explicit about not allowing zero length files, also creates exception if it fails because it can't get a data pointer
+            Bangle.js2: Only handle UBX protocol from GPS on Bangle.js 1 as it interferes with CASIC on Bangle.js 2 (fix #2124)
+            Bangle.js: GPS-raw no longer sets the FIFO_FULL message if data is lost - just passes a bool as the second argument
+            Fix for buffer overflow + segv found via fuzzing (#2121, #2122)
+            new Date(str) no longer interprets ISO 8601 UTC timestamps as local time (fix #2116)
+            Graphics: Fix clipRect checks for >1x bitmap fonts
+            Allow __proto__ to be set to a function as well as object
+            Bangle.js: Support for v2.1 barometer hardware (SPL06 vs BMP280)
+            Bangle.js: Increase step counting noise threshold 14->17 to work around pedometer fake steps (http://forum.espruino.com/conversations/371740)
+            Bangle.js: Support for v2.1 HRM hardware (VC31 vs VC31B)
+            Bangle.js: Better HRM detection (higher res filtering, better peak detection, lower median filter size, better confidence)
+            Fix E.decodeUTF8 when decoding UTF8 codes that contain all decimal digits
+            Fix for potential buffer overrun if JSON.stringify used with strangely crafted whitespace arg (fix #2114)
+            Add `NRF.setSecurity({encryptUart:true})` to force encrypted comms on BLE UART
+            Bangle.js2: Increase wait after power-on for BMP280 to fix getPressure on some devices (fix #2120)
+            Storage: Fix compaction error if a page starts with 0xff and the first write fits within that (fix #2009)
+            Add NRF.startBonding to force bonding on peripheral connection
+            nRF5x: Disable name change over BLE via 0x2A00
+
      2v11 : Bangle.js: Enable the Bangle.on('tap') event from the accelerometer by default
             Bangle.js: revert to (better) Kionix default thresholds for tap detect
             Bangle.js 2: When wake on touch is enabled, use a single tap on the front of the device for wakeup

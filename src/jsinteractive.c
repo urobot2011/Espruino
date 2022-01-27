@@ -97,7 +97,8 @@ void jsiDebuggerLine(JsVar *line);
 IOEventFlags jsiGetDeviceFromClass(JsVar *class) {
   // Devices have their Object data set up to something special
   // See jspNewObject
-  if (class->varData.str[0]=='D' &&
+  if (class &&
+      class->varData.str[0]=='D' &&
       class->varData.str[1]=='E' &&
       class->varData.str[2]=='V')
     return (IOEventFlags)class->varData.str[3];
@@ -470,25 +471,6 @@ void jsiSoftInit(bool hasBeenReset) {
   // Run wrapper initialisation stuff
   jswInit();
 
-  // Search for invalid storage and erase
-  // do this only on first boot.
-#if !defined(EMSCRIPTEN) && !defined(SAVE_ON_FLASH)
-  bool fullTest = jsiStatus & JSIS_FIRST_BOOT;
-  if (fullTest) {
-#ifdef BANGLEJS
-    jsiConsolePrintf("Checking storage...\n");
-#endif
-    if (!jsfIsStorageValid(JSFSTT_NORMAL)) {
-      jsiConsolePrintf("Storage is corrupt.\n");
-      jsfResetStorage();
-    } else {
-#ifdef BANGLEJS
-      jsiConsolePrintf("Storage Ok.\n");
-#endif
-    }
-  }
-#endif
-
   // Run 'boot code' - textual JS in flash
   jsfLoadBootCodeFromFlash(hasBeenReset);
 
@@ -786,15 +768,41 @@ void jsiSoftKill() {
   jsiStatus &= ~JSIS_FIRST_BOOT; // this is no longer the first boot!
 }
 
-void jsiSemiInit(bool autoLoad) {
+/** Called as part of initialisation - loads boot code.
+ *
+ * loadedFilename is set if we're loading a file, and we can use that for setting the __FILE__ variable
+ */
+void jsiSemiInit(bool autoLoad, JsfFileName *loadedFilename) {
+  // Set up execInfo.root/etc
   jspInit();
-
   // Set state
   interruptedDuringEvent = false;
   // Set defaults
   jsiStatus &= JSIS_SOFTINIT_MASK;
 #ifndef SAVE_ON_FLASH
   pinBusyIndicator = DEFAULT_BUSY_PIN_INDICATOR;
+#endif
+  // Set __FILE__ if we have a filename available
+  if (loadedFilename)
+    jsvObjectSetChildAndUnLock(execInfo.root, "__FILE__", jsfVarFromName(*loadedFilename));
+
+  // Search for invalid storage and erase do this only on first boot.
+  // We need to do it before we check storage for any files!
+#if !defined(EMSCRIPTEN) && !defined(SAVE_ON_FLASH)
+  bool fullTest = jsiStatus & JSIS_FIRST_BOOT;
+  if (fullTest) {
+#ifdef BANGLEJS
+    jsiConsolePrintf("Checking storage...\n");
+#endif
+    if (!jsfIsStorageValid(JSFSTT_NORMAL)) {
+      jsiConsolePrintf("Storage is corrupt.\n");
+      jsfResetStorage();
+    } else {
+#ifdef BANGLEJS
+      jsiConsolePrintf("Storage Ok.\n");
+#endif
+    }
+  }
 #endif
 
   /* If flash contains any code, then we should
@@ -878,7 +886,7 @@ void jsiInit(bool autoLoad) {
   jsnSanityTest();
 #endif
 
-  jsiSemiInit(autoLoad);
+  jsiSemiInit(autoLoad, NULL/* no filename */);
   // just in case, update the busy indicator
   jsiSetBusy(BUSY_INTERACTIVE, false);
 }
@@ -2220,7 +2228,7 @@ void jsiIdle() {
       jsvKill();
       jshReset();
       jsvInit(0);
-      jsiSemiInit(false); // don't autoload
+      jsiSemiInit(false, NULL/* no filename */); // don't autoload
       jsiStatus &= (JsiStatus)~JSIS_TODO_RESET;
     }
     if ((s&JSIS_TODO_FLASH_SAVE) == JSIS_TODO_FLASH_SAVE) {
@@ -2246,8 +2254,7 @@ void jsiIdle() {
         jsvKill();
         jshReset();
         jsvInit(0);
-        jsvObjectSetChildAndUnLock(execInfo.root, "__FILE__", jsfVarFromName(filename));
-        jsiSemiInit(false); // don't autoload code
+        jsiSemiInit(false, &filename); // don't autoload code
         // load the code we specified
         JsVar *code = jsfReadFile(filename,0,0);
         if (code)

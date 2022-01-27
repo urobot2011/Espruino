@@ -192,8 +192,8 @@ static bool jsfGetFileHeader(uint32_t addr, JsfFileHeader *header, bool readFull
   if (!addr) return false;
   jshFlashRead(header, addr, readFullName ? sizeof(JsfFileHeader) : 8/* size + name.firstChars */);
   uint32_t endAddress = addr + (uint32_t)sizeof(JsfFileHeader) + jsfGetFileSize(header);
-  return (header->size != JSF_WORD_UNSET) &&
-     (endAddress <= jsfGetBankEndAddress(addr));
+  return (header->size != JSF_WORD_UNSET) && (header->size != 0) &&
+         (endAddress <= jsfGetBankEndAddress(addr));
 }
 
 /// Is an area of flash completely erased?
@@ -419,10 +419,15 @@ static void jsfCompactWriteBuffer(uint32_t *writeAddress, uint32_t readAddress, 
       return;
     }
     jsDebug(DBG_INFO,"compact> write %d from buf[%d] => 0x%08x\n", s, *swapBufferTail, *writeAddress);
-    if (!jsfIsErased(*writeAddress, s)) {
+    // if on a new page, erase it
+    uint32_t pAddr, pLen;
+    if (jshFlashGetPage(*writeAddress, &pAddr, &pLen) &&  (pAddr == *writeAddress)) {
+      jsDebug(DBG_INFO,"compact> erase page 0x%08x\n", *writeAddress);
       jshFlashErasePage(*writeAddress);
     }
-    assert(jsfIsErased(*writeAddress, s));
+    assert(jsfIsErased(*writeAddress, s)); 
+    //if (!jsfIsErased(*writeAddress, s)) jsiConsolePrintf("ERROR: AREA NOT ERASED 0x%08x => 0x%08x\n", *writeAddress, *writeAddress + s);
+    jsDebug(DBG_INFO,"compact> write 0x%08x => 0x%08x\n", *writeAddress, *writeAddress + s);
     jshFlashWrite(&swapBuffer[*swapBufferTail], *writeAddress, s);
     *writeAddress += s;
     nextFlashPage = jsfGetAddressOfNextPage(*writeAddress);
@@ -491,6 +496,7 @@ static bool jsfCompactInternal(uint32_t startAddress, char *swapBuffer, uint32_t
   if (writeAddress!=startAddress)
     writeAddress = jsfGetAddressOfNextPage(writeAddress-1);
   if (writeAddress) {
+    jsDebug(DBG_INFO,"compact> erase 0x%08x => 0x%08x\n", writeAddress, addr);
     // addr is the address of the last area in flash
     jsfEraseArea(writeAddress, addr);
   }
@@ -885,8 +891,15 @@ bool jsfWriteFile(JsfFileName name, JsVar *data, JsfFileFlags flags, JsVarInt of
   uint32_t size = (uint32_t)_size;
   // Data length
   JSV_GET_AS_CHAR_ARRAY(dPtr, dLen, data);
-  if (!dPtr) return false;
+  if (!dPtr) {
+    jsExceptionHere(JSET_ERROR, "Can't get pointer to data to write");
+    return false;
+  }
   if (size==0) size=(uint32_t)dLen;
+  if (!size) {
+    jsExceptionHere(JSET_ERROR, "Can't create zero length file");
+    return false;
+  }
   // Lookup file
   JsfFileHeader header;
   uint32_t addr = jsfFindFile(name, &header);

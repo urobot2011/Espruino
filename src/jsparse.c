@@ -1316,7 +1316,7 @@ NO_INLINE JsVar *jspeFactorArray() {
 NO_INLINE void jspEnsureIsPrototype(JsVar *instanceOf, JsVar *prototypeName) {
   if (!prototypeName) return;
   JsVar *prototypeVar = jsvSkipName(prototypeName);
-  if (!jsvIsObject(prototypeVar)) {
+  if (!(jsvIsObject(prototypeVar) || jsvIsFunction(prototypeVar))) {
     if (!jsvIsUndefined(prototypeVar))
       jsExceptionHere(JSET_TYPEERROR, "Prototype should be an object, got %t", prototypeVar);
     jsvUnLock(prototypeVar);
@@ -1438,7 +1438,8 @@ NO_INLINE JsVar *jspeAddNamedFunctionParameter(JsVar *funcVar, JsVar *name) {
   if (!funcVar) funcVar = jsvNewWithFlags(JSV_FUNCTION);
   char buf[JSLEX_MAX_TOKEN_LENGTH+1];
   buf[0] = '\xFF';
-  jsvGetString(name, &buf[1], JSLEX_MAX_TOKEN_LENGTH);
+  size_t l = jsvGetString(name, &buf[1], JSLEX_MAX_TOKEN_LENGTH);
+  buf[l+1] = 0; // zero terminate since jsvGetString doesn't add one
   JsVar *param = jsvAddNamedChild(funcVar, 0, buf);
   jsvMakeFunctionParameter(param);
   jsvUnLock(param);

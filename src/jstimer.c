@@ -460,7 +460,7 @@ bool jstPinPWM(JsVarFloat freq, JsVarFloat dutyCycle, Pin pin) {
   return utilTimerInsertTask(&taskoff);
 }
 
-/// Execute the given function repeatedly after the given time period
+/// Execute the given function repeatedly after the given time period. If period=0, don't repeat. True on success or false on failure to schedule
 bool jstExecuteFn(UtilTimerTaskExecFn fn, void *userdata, JsSysTime startTime, uint32_t period) {
   UtilTimerTask task;
   task.time = (int)startTime;
@@ -576,6 +576,7 @@ bool jstStopBufferTimerTask(JsVar *var) {
 
 void jstReset() {
   jshUtilTimerDisable();
+  utilTimerOn = false;
   utilTimerTasksTail = utilTimerTasksHead = 0;
   utilTimerTime = (int)jshGetSystemTime();
   utilTimerPeriod = 0;
@@ -603,6 +604,7 @@ void jstDumpUtilityTimers() {
   int uTimerTime = utilTimerTime;
   jshInterruptOn();
 
+  jsiConsolePrintf("Util Timer %s\n", utilTimerOn?"on":"off");
   jsiConsolePrintf("Current timer difference %d us\n", (int)(1000*jshGetMillisecondsFromTime((int)jshGetSystemTime()-uTimerTime)));
   unsigned char t = uTimerTasksTail;
   bool hadTimers = false;

@@ -100,7 +100,7 @@ typedef struct {
   uint16_t _simplePalette[16]; // used when a palette is created for rendering
 } GfxDrawImageInfo;
 
-static bool _jswrap_graphics_freeImageInfo(GfxDrawImageInfo *info) {
+static void _jswrap_graphics_freeImageInfo(GfxDrawImageInfo *info) {
   jsvUnLock(info->buffer);
 }
 
@@ -2182,7 +2182,7 @@ JsVar *jswrap_graphics_drawString(JsVar *parent, JsVar *var, int x, int y, bool 
     if (info.font == JSGRAPHICS_FONTSIZE_VECTOR) {
 #ifndef NO_VECTOR_FONT
       int w = (int)graphicsVectorCharWidth(&gfx, info.scalex, ch);
-      if (x>minX-w && x<maxX  && y>minY-info.scaley && y<maxY) {
+      if (x>minX-w && x<maxX  && y>minY-fontHeight && y<maxY) {
         if (solidBackground)
           graphicsFillRect(&gfx,x,y,x+w-1,y+fontHeight-1, gfx.data.bgColor);
         graphicsFillVectorChar(&gfx, x, y, info.scalex, info.scaley, ch);
@@ -2190,12 +2190,12 @@ JsVar *jswrap_graphics_drawString(JsVar *parent, JsVar *var, int x, int y, bool 
       x+=w;
 #endif
     } else if (info.font == JSGRAPHICS_FONTSIZE_4X6) {
-      if (x>minX-4 && x<maxX && y>minY-6 && y<maxY)
+      if (x>minX-4*info.scalex && x<maxX && y>minY-fontHeight && y<maxY)
         graphicsDrawChar4x6(&gfx, x, y, ch, info.scalex, info.scaley, solidBackground);
       x+=4*info.scalex;
 #ifdef USE_FONT_6X8
     } else if (info.font == JSGRAPHICS_FONTSIZE_6X8) {
-      if (x>minX-6 && x<maxX && y>minY-8 && y<maxY)
+      if (x>minX-6*info.scalex && x<maxX && y>minY-fontHeight && y<maxY)
         graphicsDrawChar6x8(&gfx, x, y, ch, info.scalex, info.scaley, solidBackground);
       x+=6*info.scalex;
 #endif
@@ -2218,7 +2218,7 @@ JsVar *jswrap_graphics_drawString(JsVar *parent, JsVar *var, int x, int y, bool 
         width = (int)jsvGetInteger(customWidth);
         bmpOffset = width*(ch-info.customFirstChar);
       }
-      if (ch>=info.customFirstChar && (x>minX-width) && (x<maxX) && (y>minY-fontHeight) && y<maxY) {
+      if (ch>=info.customFirstChar && (x>minX-width*info.scalex) && (x<maxX) && (y>minY-fontHeight) && y<maxY) {
         int ch = fontHeight/info.scaley;
         bmpOffset *= ch * customBPP;
         // now render character
@@ -2387,6 +2387,8 @@ JsVar *jswrap_graphics_moveTo(JsVar *parent, int x, int y) {
   "return_object" : "Graphics"
 }
 Draw a polyline (lines between each of the points in `poly`) in the current foreground color
+
+**Note:** there is a limit of 64 points (128 XY elements) for polygons
 */
 /*JSON{
   "type" : "method",
@@ -2402,6 +2404,8 @@ Draw a polyline (lines between each of the points in `poly`) in the current fore
   "return_object" : "Graphics"
 }
 Draw an **antialiased** polyline (lines between each of the points in `poly`) in the current foreground color
+
+**Note:** there is a limit of 64 points (128 XY elements) for polygons
 */
 JsVar *jswrap_graphics_drawPoly_X(JsVar *parent, JsVar *poly, bool closed, bool antiAlias) {
   JsGraphics gfx; if (!graphicsGetFromVar(&gfx, parent)) return 0;
@@ -2481,6 +2485,8 @@ This fills from the top left hand side of the polygon (low X, low Y)
 *down to but not including* the bottom right. When placed together polygons
 will align perfectly without overdraw - but this will not fill the
 same pixels as `drawPoly` (drawing a line around the edge of the polygon).
+
+**Note:** there is a limit of 64 points (128 XY elements) for polygons
 */
 /*JSON{
   "type" : "method",
@@ -2510,6 +2516,8 @@ This fills from the top left hand side of the polygon (low X, low Y)
 *down to but not including* the bottom right. When placed together polygons
 will align perfectly without overdraw - but this will not fill the
 same pixels as `drawPoly` (drawing a line around the edge of the polygon).
+
+**Note:** there is a limit of 64 points (128 XY elements) for polygons
 */
 JsVar *jswrap_graphics_fillPoly_X(JsVar *parent, JsVar *poly, bool antiAlias) {
   JsGraphics gfx; if (!graphicsGetFromVar(&gfx, parent)) return 0;
@@ -3386,9 +3394,12 @@ JsVar *jswrap_graphics_asURL(JsVar *parent) {
   "#if" : "!defined(SAVE_ON_FLASH) && !defined(ESPRUINOBOARD)",
   "generate" : "jswrap_graphics_dump"
 }
-Output this image as a bitmap URL. The Espruino Web IDE can detect the data on the console and render the image inline automatically.
+Output this image as a bitmap URL of the form `data:image/bmp;base64,...`. The Espruino Web IDE will detect this on the console and will render the image inline automatically.
 
-This is identical to `console.log(g.asURL())` - it is just a convenient function for easy debugging.
+This is identical to `console.log(g.asURL())` - it is just a convenient function for easy debugging and producing screenshots of what is currently in the Graphics instance.
+
+**Note:** This may not work on some bit depths of Graphics instances. It will also not work for the main Graphics instance
+of Bangle.js 1 as the graphics on Bangle.js 1 are stored in write-only memory.
 */
 void jswrap_graphics_dump(JsVar *parent) {
   JsVar *url = jswrap_graphics_asURL(parent);

@@ -1000,7 +1000,7 @@ JsVar *jswrap_ble_getAdvertisingData(JsVar *data, JsVar *options) {
   }
 
 #if ESPR_BLUETOOTH_ANCS
-  if (bleStatus & BLE_ANCS_INITED) {
+  if (bleStatus & BLE_ANCS_OR_AMS_INITED) {
     static ble_uuid_t m_adv_uuids[1]; /**< Universally unique service identifiers. */
     ble_ancs_get_adv_uuid(m_adv_uuids);
     advdata.uuids_solicited.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
@@ -1168,6 +1168,8 @@ NRF.setServices(undefined, {
   hid : new Uint8Array(...), // optional, default is undefined. Enable BLE HID support
   uart : true, // optional, default is true. Enable BLE UART support
   advertise: [ '180D' ] // optional, list of service UUIDs to advertise
+  ancs : true, // optional, Bangle.js-only, enable Apple ANCS support for notifications
+  ams : true // optional, Bangle.js-only, enable Apple AMS support for media control
 });
 ```
 
@@ -1223,6 +1225,7 @@ void jswrap_ble_setServices(JsVar *data, JsVar *options) {
   bool use_uart = true;
 #if ESPR_BLUETOOTH_ANCS
   bool use_ancs = false;
+  bool use_ams = false;
 #endif
   JsVar *advertise = 0;
 
@@ -1233,6 +1236,7 @@ void jswrap_ble_setServices(JsVar *data, JsVar *options) {
       {"uart", JSV_BOOLEAN, &use_uart},
 #if ESPR_BLUETOOTH_ANCS
       {"ancs", JSV_BOOLEAN, &use_ancs},
+      {"ams", JSV_BOOLEAN, &use_ams},
 #endif
       {"advertise",  JSV_ARRAY, &advertise},
   };
@@ -1272,6 +1276,15 @@ void jswrap_ble_setServices(JsVar *data, JsVar *options) {
     if (bleStatus & BLE_ANCS_INITED)
       bleStatus |= BLE_NEEDS_SOFTDEVICE_RESTART;
     jsvObjectRemoveChild(execInfo.hiddenRoot, BLE_NAME_ANCS);
+  }
+  if (use_ams) {
+    if (!(bleStatus & BLE_AMS_INITED))
+      bleStatus |= BLE_NEEDS_SOFTDEVICE_RESTART;
+    jsvObjectSetChildAndUnLock(execInfo.hiddenRoot, BLE_NAME_AMS, jsvNewFromBool(true));
+  } else {
+    if (bleStatus & BLE_AMS_INITED)
+      bleStatus |= BLE_NEEDS_SOFTDEVICE_RESTART;
+    jsvObjectRemoveChild(execInfo.hiddenRoot, BLE_NAME_AMS);
   }
 #endif
 
@@ -2557,6 +2570,23 @@ truncated : bool // the 'value' was too big to be sent completely
 /*JSON{
     "type" : "staticmethod",
     "class" : "NRF",
+    "name" : "ancsIsActive",
+    "ifdef" : "NRF52_SERIES",
+    "generate" : "jswrap_ble_ancsIsActive",
+    "params" : [ ],
+    "return" : ["bool", "True if Apple Notification Center Service (ANCS) has been initialised and is active" ]
+}
+Check if Apple Notification Center Service (ANCS) is currently active on the BLE connection
+*/
+bool jswrap_ble_ancsIsActive() {
+#if ESPR_BLUETOOTH_ANCS
+  return ((bleStatus & BLE_ANCS_INITED) && ble_ancs_is_active());
+#endif
+}
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
     "name" : "ancsAction",
     "ifdef" : "NRF52_SERIES",
     "generate" : "jswrap_ble_ancsAction",
@@ -2648,7 +2678,7 @@ JsVar *jswrap_ble_ancsGetAppInfo(JsVar *appId) {
     jsExceptionHere(JSET_ERROR, "ANCS not active");
     return 0;
   }
-  char appIdStr[32];
+  char appIdStr[48];
   jsvGetString(appId, appIdStr, sizeof(appIdStr));
   if (ble_ancs_request_app(appIdStr, strlen(appIdStr))) { // if fails, it'll create an exception
     if (bleNewTask(BLETASK_ANCS_APP_ATTR, appId)) {
@@ -2659,26 +2689,90 @@ JsVar *jswrap_ble_ancsGetAppInfo(JsVar *appId) {
   return promise;
 }
 
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
+    "name" : "amsIsActive",
+    "ifdef" : "NRF52_SERIES",
+    "generate" : "jswrap_ble_amsIsActive",
+    "params" : [ ],
+    "return" : ["bool", "True if Apple Media Service (AMS) has been initialised and is active" ]
+}
+Check if Apple Media Service (AMS) is currently active on the BLE connection
+*/
+bool jswrap_ble_amsIsActive() {
+#if ESPR_BLUETOOTH_ANCS
+  return ((bleStatus & BLE_AMS_INITED) && ble_ams_is_active());
+#endif
+}
 
 /*JSON{
     "type" : "staticmethod",
     "class" : "NRF",
-    "name" : "amsGetMusicInfo",
+    "name" : "amsGetPlayerInfo",
     "ifdef" : "NRF52_SERIES",
-    "generate" : "jswrap_ble_amsGetMusicInfo",
+    "generate" : "jswrap_ble_amsGetPlayerInfo",
+    "params" : [
+      ["id","JsVar","Either 'name', 'playbackinfo' or 'volume'"]
+    ],
+    "return" : ["JsVar", "A `Promise` that is resolved (or rejected) when the connection is complete" ],
+    "return_object" : "Promise"
+}
+Get Apple Media Service (AMS) info for the current media player.
+"playbackinfo" returns a concatenation of three comma-separated values:
+
+- PlaybackState: a string that represents the integer value of the playback state:
+    - PlaybackStatePaused = 0
+    - PlaybackStatePlaying = 1
+    - PlaybackStateRewinding = 2
+    - PlaybackStateFastForwarding = 3
+- PlaybackRate: a string that represents the floating point value of the playback rate.
+- ElapsedTime: a string that represents the floating point value of the elapsed time of the current track, in seconds
+
+*/
+JsVar *jswrap_ble_amsGetPlayerInfo(JsVar *id) {
+  JsVar *promise = 0;
+#if ESPR_BLUETOOTH_ANCS
+  if (!(bleStatus & BLE_AMS_INITED) || !ble_ams_is_active()) {
+    jsExceptionHere(JSET_ERROR, "AMS not active");
+    return 0;
+  }
+  ble_ams_c_player_attribute_id_val_t cmd;
+  if (jsvIsStringEqual(id,"name")) cmd=BLE_AMS_PLAYER_ATTRIBUTE_ID_NAME;
+  else if (jsvIsStringEqual(id,"playbackinfo")) cmd=BLE_AMS_PLAYER_ATTRIBUTE_ID_PLAYBACK_INFO;
+  else if (jsvIsStringEqual(id,"volume")) cmd=BLE_AMS_PLAYER_ATTRIBUTE_ID_VOLUME;
+  else {
+    jsExceptionHere(JSET_ERROR, "Unknown id %q", id);
+    return promise;
+  }
+  if (ble_ams_request_player_info(cmd)) { // if fails, it'll create an exception
+    if (bleNewTask(BLETASK_AMS_ATTR, 0)) {
+      promise = jsvLockAgainSafe(blePromise);
+    }
+  }
+#endif
+  return promise;
+}
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
+    "name" : "amsGetTrackInfo",
+    "ifdef" : "NRF52_SERIES",
+    "generate" : "jswrap_ble_amsGetTrackInfo",
     "params" : [
       ["id","JsVar","Either 'artist', 'album', 'title' or 'duration'"]
     ],
     "return" : ["JsVar", "A `Promise` that is resolved (or rejected) when the connection is complete" ],
     "return_object" : "Promise"
 }
-Get ANCS info for an app (add id is available via `ancsGetNotificationInfo`)
+Get Apple Media Service (AMS) info for the currently-playing track
 */
-JsVar *jswrap_ble_amsGetMusicInfo(JsVar *id) {
+JsVar *jswrap_ble_amsGetTrackInfo(JsVar *id) {
   JsVar *promise = 0;
 #if ESPR_BLUETOOTH_ANCS
-  if (!(bleStatus & BLE_ANCS_INITED) || !ble_ancs_is_active()) {
-    jsExceptionHere(JSET_ERROR, "ANCS not active");
+  if (!(bleStatus & BLE_AMS_INITED) || !ble_ams_is_active()) {
+    jsExceptionHere(JSET_ERROR, "AMS not active");
     return 0;
   }
   ble_ams_c_track_attribute_id_val_t cmd;
@@ -2690,7 +2784,7 @@ JsVar *jswrap_ble_amsGetMusicInfo(JsVar *id) {
     jsExceptionHere(JSET_ERROR, "Unknown id %q", id);
     return promise;
   }
-  if (ble_ams_request_info(cmd)) { // if fails, it'll create an exception
+  if (ble_ams_request_track_info(cmd)) { // if fails, it'll create an exception
     if (bleNewTask(BLETASK_AMS_ATTR, 0)) {
       promise = jsvLockAgainSafe(blePromise);
     }
@@ -2706,7 +2800,7 @@ JsVar *jswrap_ble_amsGetMusicInfo(JsVar *id) {
     "ifdef" : "NRF52_SERIES",
     "generate" : "jswrap_ble_amsCommand",
     "params" : [
-      ["id","JsVar","Either 'artist', 'album', 'title' or 'duration'"]
+      ["id","JsVar","For example, 'play', 'pause', 'volup' or 'voldown'"]
     ]
 }
 Send an AMS command to an Apple Media Service device to control music playback
@@ -2715,7 +2809,7 @@ Command is one of play, pause, playpause, next, prev, volup, voldown, repeat, sh
 */
 void jswrap_ble_amsCommand(JsVar *id) {
 #if ESPR_BLUETOOTH_ANCS
-  if (!(bleStatus & BLE_ANCS_INITED) || !ble_ams_is_active()) {
+  if (!(bleStatus & BLE_AMS_INITED) || !ble_ams_is_active()) {
     jsExceptionHere(JSET_ERROR, "AMS not active");
     return;
   }
@@ -3090,6 +3184,9 @@ NRF.setSecurity({
   passkey : // default "", or a 6 digit passkey to use
   oob : [0..15] // if specified, Out Of Band pairing is enabled and
                 // the 16 byte pairing code supplied here is used
+  encryptUart : bool // default false (unless oob or passkey specified)
+                     // This sets the BLE UART service such that it
+                     // is encrypted and can only be used from a bonded connection
 });
 ```
 
@@ -3107,6 +3204,7 @@ NRF.setSecurity({passkey:"123456", mitm:1, display:1});
 However, while most devices will request a passkey for pairing at
 this point it is still possible for a device to connect without
 requiring one (eg. using the 'NRF Connect' app).
+
 
 To force a passkey you need to protect each characteristic
 you define with `NRF.setSecurity`. For instance the following
@@ -3194,6 +3292,27 @@ See `NRF.setSecurity` for information about negotiating a secure connection.
 */
 JsVar *jswrap_ble_getSecurityStatus(JsVar *parent) {
   return jsble_get_security_status(m_peripheral_conn_handle);
+}
+
+/*JSON{
+    "type" : "staticmethod",
+    "class" : "NRF",
+    "name" : "startBonding",
+    "ifdef" : "NRF52_SERIES",
+    "generate" : "jswrap_ble_startBonding",
+    "params" : [
+      ["forceRepair","bool","True if we should force repairing even if there is already valid pairing info"]
+    ],
+    "return" : ["JsVar", "A promise" ]
+}
+*/
+JsVar *jswrap_ble_startBonding(bool forceRePair) {
+  if (bleNewTask(BLETASK_BONDING, NULL)) {
+     JsVar *promise = jsvLockAgainSafe(blePromise);
+     jsble_startBonding(forceRePair);
+     return promise;
+   }
+   return 0;
 }
 
 /*JSON{

@@ -1813,7 +1813,7 @@ See [the documentation on Inline C](http://www.espruino.com/InlineC) for more in
 */
 void jswrap_espruino_compiledC(JsVar *code) {
   NOT_USED(code);
-  jsExceptionHere(JSET_ERROR, "'E.InlineC' calls should have been replaced by the Espruino tools before upload");
+  jsExceptionHere(JSET_ERROR, "'E.compiledC' calls should have been replaced by the Espruino tools before upload");
 }
 
 /*JSON{
@@ -2065,9 +2065,9 @@ JsVar *jswrap_espruino_decodeUTF8(JsVar *str, JsVar *lookup, JsVar *replaceFn) {
       if (jsvIsArray(lookup))
         replace = jsvGetArrayItem(lookup, cp);
       else if (jsvIsObject(lookup)) {
-        char code[16];
-        itostr(cp, code, 16);
-        replace = jsvObjectGetChild(lookup, code, 0);
+        JsVar *index = jsvNewFromInteger(cp);
+        replace = jsvSkipNameAndUnLock(jsvFindChildFromVar(lookup, index, false));
+        jsvUnLock(index);
       }
       if (!replace && jsvIsFunction(replaceFn)) {
         JsVar *v = jsvNewFromInteger(cp);
