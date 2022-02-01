@@ -74,7 +74,7 @@ static int AccelFilter_get(AccelFilter* f) {
 
 AccelFilter accelFilter;
 
-/* =================================
+/* =============================================================
 *  DC Filter
 */
 #define NSAMPLE 12 //Exponential Moving Average DC removal filter alpha = 1/NSAMPLE
@@ -168,6 +168,7 @@ bool gate_open = false;        // start closed
 // Init step count
 void stepcount_init() {
   AccelFilter_init(&accelFilter);
+  DCFilter_sample_avg_total = 8192*NSAMPLE;
   accFiltered = 0;
   accFilteredHist[0] = 0;
   accFilteredHist[1] = 0;
