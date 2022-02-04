@@ -36,7 +36,7 @@ info = {
      'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120',
      'DEFINES += -DESPR_USE_SPI3 -DSPI0_USE_EASY_DMA=1',
      'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
-     'DEFINES += -DNRF_BL_DFU_INSECURE=1',
+     'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1',
      'DEFINES += -DNO_DUMP_HARDWARE_INITIALISATION -DUSE_FONT_6X8',
      'NRF_SDK15=1'
    ]
@@ -44,7 +44,7 @@ info = {
 };
 
 save_code_pages = 96; #96;
-fstorage_pages = 10; # typically 2, 10 reduces risk of brick on first flash from stock FW
+fstorage_pages = 2; # typically 2, 10 reduces risk of brick on first flash from stock FW
 chip = {
   'part' : "NRF52840",
   'family' : "NRF52",
@@ -68,16 +68,17 @@ chip = {
 };
 
 devices = {
-  'BTN1' : { 'pin' : 'D26', 'pinstate' : 'IN_PULLDOWN' },
+  'BTN1' : { 'pin' : 'D45', 'pinstate' : 'IN_PULLUP' },
 
+cs,clk,mosi,miso,io2/wp,io3/hold=20,25,22,23,21,24
   'SPIFLASH' : {
-            'pin_cs' : 'D17',
-            'pin_sck' : 'D19',
-            'pin_mosi' : 'D20',
-            'pin_miso' : 'D21',
-            'pin_wp' : 'D22',
+            'pin_cs' : 'D20',
+            'pin_sck' : 'D25',
+            'pin_mosi' : 'D22',
+            'pin_miso' : 'D23',
+            'pin_wp' : 'D21',
 #            'pin_hold' : 'D23',
-            'pin_rst' : 'D23', # no reset but this is HOLD pin, we want it set to 1 like RST
+            'pin_rst' : 'D24', # no reset but this is HOLD pin, we want it set to 1 like RST
             'size' : 8192*1024, # 4MB
             'memmap_base' : 0x60000000,
           }
