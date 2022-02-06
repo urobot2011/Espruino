@@ -39,8 +39,13 @@ static uint16_t _chunk_buffers[2][LCD_SPI_UNBUF_LEN];
 volatile uint16_t *_chunk_buffer = &_chunk_buffers[0][0];
 volatile int _current_buf = 0;
 #else
+#ifdef LCD_SPI_BIGPIX
+static uint32_t _chunk_buffers[LCD_SPI_UNBUF_LEN];
+volatile uint32_t *_chunk_buffer = &_chunk_buffers[0];
+#else
 static uint16_t _chunk_buffers[LCD_SPI_UNBUF_LEN];
 volatile uint16_t *_chunk_buffer = &_chunk_buffers[0];
+#endif
 static int _firstx=-1;
 void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2);
 #endif
@@ -108,8 +113,14 @@ static void flush_chunk_buffer(){
 static void flush_chunk_buffer(){
   if(_chunk_index == 0) return;
   set_cs();
+#ifdef LCD_SPI_BIGPIX
+  disp_spi_transfer_addrwin(_firstx*2, _lasty*2, _lastx*2+1, _lasty*2+1);
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*4, NULL);
+  jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*4, NULL);
+#else
   disp_spi_transfer_addrwin(_firstx, _lasty, _lastx, _lasty);
   jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, _chunk_index*2, NULL);
+#endif
   rel_cs();
   _chunk_index = 0;
 }
@@ -244,7 +255,7 @@ void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
 
 #ifdef LCD_SPI_DOUBLEBUFF
 void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
-  uint16_t color =   (col>>8) | (col<<8); 
+    uint16_t color =   __builtin_bswap16(col); 
   if (x!=_lastx+1 || y!=_lasty) {
     set_cs();
     disp_spi_transfer_addrwin(x, y, gfx->data.width, y+1);  
@@ -264,7 +275,12 @@ void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
 }
 #else
 void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
-  uint16_t color =   (col>>8) | (col<<8); 
+#ifdef LCD_SPI_BIGPIX
+  uint16_t tmp =   __builtin_bswap16(col); 
+  uint32_t color =  ((uint32_t)(tmp) << 16) + (uint32_t)(tmp);
+#else
+   uint16_t color =   __builtin_bswap16(col); 
+#endif
   if (x!=_lastx+1 || y!=_lasty) {
     flush_chunk_buffer();
     _chunk_buffer[_chunk_index++] = color;
@@ -291,11 +307,30 @@ void lcd_spi_unbuf_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
 */
 void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsigned int col) {
   int pixels = (1+x2-x1)*(1+y2-y1); 
-  uint16_t color =   (col>>8) | (col<<8); 
+#ifdef LCD_SPI_BIGPIX
+  uint16_t tmp =   __builtin_bswap16(col); 
+  uint32_t color =  ((uint32_t)(tmp) << 16) + (uint32_t)(tmp);
+#else
+   uint16_t color =   __builtin_bswap16(col); 
+#endif
   set_cs();
 #ifndef LCD_SPI_DOUBLEBUFF 
   flush_chunk_buffer();
 #endif
+#ifdef LCD_SPI_BIGPIX
+  disp_spi_transfer_addrwin(x1*2, y1*2, x2*2+1, y2*2+1); //always flushes buffer 
+  int fill = pixels>LCD_SPI_UNBUF_LEN ? LCD_SPI_UNBUF_LEN : pixels;
+  for (int i=0; i<fill; i++) _chunk_buffer[i] = color; //fill buffer with color for reuse
+  while (pixels>=fill) {
+       jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, fill*4,NULL);
+       jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, fill*4,NULL);
+       pixels-=fill;
+  }
+  if (pixels>0) {
+    jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, pixels*4,NULL);
+    jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, pixels*4,NULL);
+  }
+#else
   disp_spi_transfer_addrwin(x1, y1, x2, y2); //always flushes buffer 
   int fill = pixels>LCD_SPI_UNBUF_LEN ? LCD_SPI_UNBUF_LEN : pixels;
   for (int i=0; i<fill; i++) _chunk_buffer[i] = color; //fill buffer with color for reuse
@@ -304,6 +339,7 @@ void lcd_spi_unbuf_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, uns
        pixels-=fill;
   }
   if (pixels>0) jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL, pixels*2,NULL);
+#endif
   rel_cs();
   _lastx=-1;
   _lasty=-1;

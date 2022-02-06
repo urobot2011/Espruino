@@ -23,7 +23,8 @@ info = {
 #     'NEOPIXEL'
    ],
    'makefile' : [
-    'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
+     #'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
+     'DEFINES += -DCONFIG_NFCT_PINS_AS_GPIOS', 
 #     'CFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main',
 #     'LDFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main -nostartfiles',
      'DEFINES += -DNRF_SDH_BLE_GATT_MAX_MTU_SIZE=131', #59 77 131 104
@@ -33,7 +34,7 @@ info = {
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
      'USE_LCD_SPI_UNBUF=1',
-     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120',
+     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120 -DLCD_SPI_BIGPIX',
      'DEFINES += -DESPR_USE_SPI3 -DSPI0_USE_EASY_DMA=1',
      'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
      'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1',
@@ -58,19 +59,18 @@ chip = {
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
-  'address' : ((0xf8 - fstorage_pages - save_code_pages) * 4096), # Bootloader at 0xF8000
+# 'address' : ((0xf8 - fstorage_pages - save_code_pages) * 4096), # Bootloader at 0xF8000
   'page_size' : 4096,
-  'pages' : save_code_pages,
+# 'pages' : save_code_pages,
   'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages + save_code_pages)*4), # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 0x100-0xe0=0x20, FS 2, code 96. Each page is 4 kb.
-#   'address' : 0x60000000, # put this in external spiflash (see below) 
-#  'pages' : 2048, # Entire 8MB of external flash
+  'address' : 0x60000000, # put this in external spiflash (see below) 
+  'pages' : 2048 # Entire 8MB of external flash
    },
 };
 
 devices = {
   'BTN1' : { 'pin' : 'D45', 'pinstate' : 'IN_PULLUP' },
 
-cs,clk,mosi,miso,io2/wp,io3/hold=20,25,22,23,21,24
   'SPIFLASH' : {
             'pin_cs' : 'D20',
             'pin_sck' : 'D25',
