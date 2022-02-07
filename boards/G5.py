@@ -23,7 +23,7 @@ info = {
 #     'NEOPIXEL'
    ],
    'makefile' : [
-     #'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
+     'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
      'DEFINES += -DCONFIG_NFCT_PINS_AS_GPIOS', 
 #     'CFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main',
 #     'LDFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main -nostartfiles',
