@@ -16,7 +16,6 @@
 #include "jsinteractive.h"
 #include "jshardware.h"
 #include "nrf5x_utils.h"
-#include "jswrapper.h"
 
 int main() {
 
@@ -25,7 +24,6 @@ int main() {
   nrf_configure_uicr_flags();
 
   jshInit();
-  jswHWInit();
 
   bool buttonState = false;
 #ifdef BTN1_PININDEX

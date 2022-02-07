@@ -18,7 +18,6 @@
 #endif
 #include "jsinteractive.h"
 #include "jshardware.h"
-#include "jswrapper.h"
 
 extern void _VECTOR_TABLE;
 
@@ -26,7 +25,6 @@ int main(void){
   SCB->VTOR = (unsigned int)&_VECTOR_TABLE;
 
   jshInit();
-  jswHWInit();
 #ifdef USB
   MX_USB_DEVICE_Init();
 #endif

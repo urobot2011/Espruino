@@ -212,7 +212,7 @@ void jsfGetJSONForFunctionWithCallback(JsVar *var, JSONFlags flags, vcbprintf_ca
   jsvObjectIteratorFree(&it);
   cbprintf(user_callback, user_data, ") ");
 
-  if (jsvIsNativeFunction(var)) {
+  if (jsvIsNative(var)) {
     cbprintf(user_callback, user_data, "{ [native code] }");
   } else {
     if (codeVar) {

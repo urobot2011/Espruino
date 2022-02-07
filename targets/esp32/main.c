@@ -18,7 +18,6 @@
 #include "jshardwareSpi.h"
 #include "jshardwareESP32.h"
 #include "jswrap_wifi.h" // jswrap_wifi_restore
-#include "jswrapper.h"
 
 #ifdef BLUETOOTH
 #include "libs/bluetooth/bluetooth.h"
@@ -59,7 +58,6 @@ static void espruinoTask(void *data) {
   SPIChannelsInit();
   initADC(1);
   jshInit();     // Initialize the hardware
-  jswHWInit();
   heapVars = (esp_get_free_heap_size() - 40000) / 16;  //calculate space for jsVars
   heapVars = heapVars - heapVars % 100; //round to 100
   if(heapVars > 20000) heapVars = 20000;  //WROVER boards have much more RAM, so we set a limit

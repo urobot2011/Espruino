@@ -202,11 +202,6 @@ JsVar *jspeiFindChildFromStringInParents(JsVar *parent, const char *name) {
 
 JsVar *jspeiGetScopesAsVar() {
   if (!execInfo.scopesVar) return 0; // no scopes!
-  // If just one element, return it (no array)
-  if (jsvGetArrayLength(execInfo.scopesVar)==1) {
-    JsVar *v = jsvGetLastArrayItem(execInfo.scopesVar); // this is faster than getting by index
-    return v;
-  }
   // Copy this - because if we just returned it, the underlying array would get altered
   return jsvCopy(execInfo.scopesVar, true);
 }
@@ -214,15 +209,8 @@ JsVar *jspeiGetScopesAsVar() {
 void jspeiLoadScopesFromVar(JsVar *arr) {
   jsvUnLock(execInfo.scopesVar);
   execInfo.scopesVar = 0;
-  if (arr) {
-    if (jsvIsArray(arr)) {
-      // TODO: copy on write? would make function calls faster
-      execInfo.scopesVar = jsvCopy(arr, true);
-    } else {
-      // just a single item,but we must package it in an array
-      execInfo.scopesVar = jsvNewArray(&arr, 1);
-    }
-  }
+  if (arr) execInfo.scopesVar = jsvCopy(arr, true);
+  // TODO: copy on write? would make function calls faster
 }
 // -----------------------------------------------
 /// Check that we have enough stack to recurse. Return true if all ok, error if not.
@@ -330,7 +318,7 @@ NO_INLINE bool jspeFunctionArguments(JsVar *funcVar) {
   return true;
 }
 
-// Parse function, assuming we're on '{'. funcVar can be 0. returns 'true' is the function included the 'this' keyword
+// Parse function, assuming we're on '{'. funcVar can be 0
 NO_INLINE bool jspeFunctionDefinitionInternal(JsVar *funcVar, bool expressionOnly) {
   bool forcePretokenise = false;
 
@@ -371,7 +359,6 @@ NO_INLINE bool jspeFunctionDefinitionInternal(JsVar *funcVar, bool expressionOnl
   jslSkipWhiteSpace();
   jslCharPosNew(&funcBegin, lex->sourceVar, lex->tokenStart);
   int lastTokenEnd = -1;
-  lex->hadThisKeyword = lex->tk == LEX_R_THIS;
   if (!expressionOnly) {
     int brackets = 0;
     while (lex->tk && (brackets || lex->tk != '}')) {
@@ -388,7 +375,6 @@ NO_INLINE bool jspeFunctionDefinitionInternal(JsVar *funcVar, bool expressionOnl
     execInfo.execute = oldExec;
     lastTokenEnd = (int)lex->tokenStart;
   }
-  bool hadThisKeyword = lex->hadThisKeyword;
   // Then create var and set (if there was any code!)
   if (funcVar && lastTokenEnd>0) {
     // code var
@@ -431,7 +417,7 @@ NO_INLINE bool jspeFunctionDefinitionInternal(JsVar *funcVar, bool expressionOnl
 
   jslCharPosFree(&funcBegin);
   if (!expressionOnly) JSP_MATCH('}');
-  return hadThisKeyword;
+  return 0;
 }
 
 // Parse function (after 'function' has occurred
@@ -528,7 +514,8 @@ NO_INLINE JsVar *jspeFunctionCall(JsVar *function, JsVar *functionName, JsVar *t
      *   a) args were pre-parsed and we have to populate the function
      *   b) we parse our own args, which is possibly better
      */
-    if (jsvIsNativeFunction(function)) { // ------------------------------------- NATIVE
+    if (jsvIsNative(function)) { // ------------------------------------- NATIVE
+
       unsigned int argPtrSize = 0;
       int boundArgs = 0;
       // Add 'bound' parameters if there were any
@@ -1467,19 +1454,8 @@ NO_INLINE JsVar *jspeArrowFunction(JsVar *funcVar, JsVar *a) {
   funcVar = jspeAddNamedFunctionParameter(funcVar, a);
 
   bool expressionOnly = lex->tk!='{';
-  bool fnIncludesThis = jspeFunctionDefinitionInternal(funcVar, expressionOnly);
-  /* Arrow functions store the value of 'this' when they were defined. In order
-  to differentiate between normal functions we usually have to store 'this' even
-  if 'this' was just the global object.
-  Very few arrow functions actually use 'this' though - usually they are just used
-  as a shorthand, and so we end up wasting a whole extra var for every single
-  arrow function.
-  So... while parsing the function's body we check of the 'this' keyword is used.
-  If it isn't, we just don't include it.
-   */
-  if (fnIncludesThis)
-    jsvObjectSetChild(funcVar, JSPARSE_FUNCTION_THIS_NAME, execInfo.thisVar);
-
+  jspeFunctionDefinitionInternal(funcVar, expressionOnly);
+  jsvObjectSetChild(funcVar, JSPARSE_FUNCTION_THIS_NAME, execInfo.thisVar);
   return funcVar;
 }
 
@@ -3014,7 +2990,7 @@ JsVar *jspEvaluateVar(JsVar *str, JsVar *scope, uint16_t lineNumberOffset) {
   if (scope) {
     // if we're adding a scope, make sure it's the *only* scope
     execInfo.scopesVar = 0;
-    if (scope!=execInfo.root) jspeiAddScope(scope); // it's searched by default anyway
+    jspeiAddScope(scope);
   }
 
   // actually do the parsing

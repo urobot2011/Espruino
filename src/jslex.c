@@ -105,12 +105,10 @@ static bool jslIsToken(const char *token, int startOffset) {
 }
 
 typedef enum {
-  JSLJT_SINGLE_CHAR, // just pass the char right through
-  JSLJT_MAYBE_WHITESPACE, // we need to jump to handle whitespace
-
   JSLJT_ID,
   JSLJT_NUMBER,
   JSLJT_STRING,
+  JSLJT_SINGLECHAR,
 
   JSLJT_EXCLAMATION,
   JSLJT_PLUS,
@@ -126,60 +124,25 @@ typedef enum {
   JSLJT_GREATERTHAN,
 } PACKED_FLAGS jslJumpTableEnum;
 
+#define jslJumpTableStart 33 // '!' - the first handled character
 #define jslJumpTableEnd 124 // '|' - the last handled character
-#define jslJumpTableForwardSlash (jslJumpTableEnd+1) // used for fast whitespace handling
-const jslJumpTableEnum jslJumpTable[jslJumpTableEnd+2] = {
-    // 0
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_MAYBE_WHITESPACE, // 9 - \t
-    JSLJT_MAYBE_WHITESPACE, // 10,\n newline
-    JSLJT_MAYBE_WHITESPACE, // 11, 0x0B - vertical tab
-    JSLJT_MAYBE_WHITESPACE, // 12, 0x0C - form feed
-    JSLJT_MAYBE_WHITESPACE, // 13,\r carriage return
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    // 16
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_SINGLE_CHAR,
-    JSLJT_MAYBE_WHITESPACE, // 32, space
+const jslJumpTableEnum jslJumpTable[jslJumpTableEnd+1-jslJumpTableStart] = {
     // 33
     JSLJT_EXCLAMATION, // !
     JSLJT_STRING, // "
-    JSLJT_SINGLE_CHAR, // #
+    JSLJT_SINGLECHAR, // #
     JSLJT_ID, // $
     JSLJT_PERCENT, // %
     JSLJT_AND, // &
     JSLJT_STRING, // '
-    JSLJT_SINGLE_CHAR, // (
-    JSLJT_SINGLE_CHAR, // )
+    JSLJT_SINGLECHAR, // (
+    JSLJT_SINGLECHAR, // )
     JSLJT_STAR, // *
     JSLJT_PLUS, // +
-    JSLJT_SINGLE_CHAR, // ,
+    JSLJT_SINGLECHAR, // ,
     JSLJT_MINUS, // -
     JSLJT_NUMBER, // . - special :/
-    JSLJT_MAYBE_WHITESPACE, // / - actually JSLJT_FORWARDSLASH but we handle this as a special case for fast whitespace handling
+    JSLJT_FORWARDSLASH, // /
     // 48
     JSLJT_NUMBER, // 0
     JSLJT_NUMBER, // 1
@@ -191,14 +154,14 @@ const jslJumpTableEnum jslJumpTable[jslJumpTableEnd+2] = {
     JSLJT_NUMBER, // 7
     JSLJT_NUMBER, // 8
     JSLJT_NUMBER, // 9
-    JSLJT_SINGLE_CHAR, // :
-    JSLJT_SINGLE_CHAR, // ;
+    JSLJT_SINGLECHAR, // :
+    JSLJT_SINGLECHAR, // ;
     JSLJT_LESSTHAN, // <
     JSLJT_EQUAL, // =
     JSLJT_GREATERTHAN, // >
-    JSLJT_SINGLE_CHAR, // ?
+    JSLJT_SINGLECHAR, // ?
     // 64
-    JSLJT_SINGLE_CHAR, // @
+    JSLJT_SINGLECHAR, // @
     JSLJT_ID, // A
     JSLJT_ID, // B
     JSLJT_ID, // C
@@ -225,9 +188,9 @@ const jslJumpTableEnum jslJumpTable[jslJumpTableEnd+2] = {
     JSLJT_ID, // X
     JSLJT_ID, // Y
     JSLJT_ID, // Z
-    JSLJT_SINGLE_CHAR, // [
-    JSLJT_SINGLE_CHAR, // \ char
-    JSLJT_SINGLE_CHAR, // ]
+    JSLJT_SINGLECHAR, // [
+    JSLJT_SINGLECHAR, // \ char
+    JSLJT_SINGLECHAR, // ]
     JSLJT_TOPHAT, // ^
     JSLJT_ID, // _
     // 96
@@ -258,12 +221,11 @@ const jslJumpTableEnum jslJumpTable[jslJumpTableEnd+2] = {
     JSLJT_ID, // X lowercase
     JSLJT_ID, // Y lowercase
     JSLJT_ID, // Z lowercase
-    JSLJT_SINGLE_CHAR, // {
+    JSLJT_SINGLECHAR, // {
     JSLJT_OR, // |
     // everything past here is handled as a single char
-    //  JSLJT_SINGLE_CHAR, // }
-    // Special entry for whitespace handling
-    JSLJT_FORWARDSLASH, // jslJumpTableForwardSlash
+    //  JSLJT_SINGLECHAR, // }
+    //  JSLJT_SINGLECHAR, // ~
 };
 
 // handle a single char
@@ -426,6 +388,7 @@ void jslSkipWhiteSpace() {
 }
 
 void jslGetNextToken() {
+  jslSkipWhiteSpace();
   int lastToken = lex->tk;
   lex->tk = LEX_EOF;
   lex->tokenl = 0; // clear token string
@@ -435,26 +398,14 @@ void jslGetNextToken() {
   }
   // record beginning of this token
   lex->tokenLastStart = lex->tokenStart;
-  unsigned char jumpCh = (unsigned char)lex->currCh;
-  if (jumpCh > jslJumpTableEnd) jumpCh = 0; // which also happens to be JSLJT_SINGLE_CHAR - what we want.
-  jslGetNextToken_start:
   lex->tokenStart = jsvStringIteratorGetIndex(&lex->it) - 1;
   // tokens
-  switch(jslJumpTable[jumpCh]) {
-    case JSLJT_MAYBE_WHITESPACE:
-      // handle whitespace
-      jslSkipWhiteSpace();
-      // If the current char is '/'
-      jumpCh = (unsigned char)lex->currCh;
-      if (jumpCh > jslJumpTableEnd) jumpCh = 0; // which also happens to be JSLJT_SINGLE_CHAR - what we want.
-      if (jumpCh=='/') jumpCh = jslJumpTableForwardSlash; // force us to jump to handle the comments
-      // go back, so we can re-check the next character against our jumptable
-      goto jslGetNextToken_start;
-      break;
-    case JSLJT_SINGLE_CHAR:
-      jslSingleChar();
-      if (lex->tk == LEX_R_THIS) lex->hadThisKeyword=true;
-      break;
+  if (((unsigned char)lex->currCh) < jslJumpTableStart ||
+      ((unsigned char)lex->currCh) > jslJumpTableEnd) {
+    // if unhandled by the jump table, just pass it through as a single character
+    jslSingleChar();
+  } else {
+    switch(jslJumpTable[((unsigned char)lex->currCh) - jslJumpTableStart]) {
     case JSLJT_ID: {
       while (isAlpha(lex->currCh) || isNumeric(lex->currCh) || lex->currCh=='$') {
         jslTokenAppendChar(lex->currCh);
@@ -501,7 +452,7 @@ void jslGetNextToken() {
       else if (jslIsToken("super", 1)) lex->tk = LEX_R_SUPER;
       else if (jslIsToken("switch", 1)) lex->tk = LEX_R_SWITCH;
       break;
-      case 't': if (jslIsToken("this", 1)) { lex->tk = LEX_R_THIS; lex->hadThisKeyword=true; }
+      case 't': if (jslIsToken("this", 1)) lex->tk = LEX_R_THIS;
       else if (jslIsToken("throw", 1)) lex->tk = LEX_R_THROW;
       else if (jslIsToken("true", 1)) lex->tk = LEX_R_TRUE;
       else if (jslIsToken("try", 1)) lex->tk = LEX_R_TRY;
@@ -706,7 +657,10 @@ void jslGetNextToken() {
           }
         }
       } break;
+
+      case JSLJT_SINGLECHAR: jslSingleChar(); break;
       default: assert(0);break;
+    }
     }
   }
 }
@@ -1153,7 +1107,7 @@ void jslPrintPosition(vcbprintf_callback user_callback, void *user_data, size_t 
   size_t line,col;
 #ifndef SAVE_ON_FLASH
   if (jsvIsNativeString(lex->sourceVar) || jsvIsFlashString(lex->sourceVar)) {
-    uint32_t stringAddr = (uint32_t)(size_t)lex->sourceVar->varData.nativeStr.ptr;
+    uint32_t stringAddr = (uint32_t)lex->sourceVar->varData.nativeStr.ptr;
     JsfFileHeader header;
     uint32_t fileAddr = jsfFindFileFromAddr(stringAddr, &header);
     if (fileAddr) {

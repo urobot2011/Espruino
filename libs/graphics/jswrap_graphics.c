@@ -505,7 +505,7 @@ void jswrap_graphics_init() {
     lcdInit_FSMC(&gfx);
     lcdSetCallbacks_FSMC(&gfx);
     graphicsSplash(&gfx);
-    graphicsSetVarInitial(&gfx);
+    graphicsSetVar(&gfx);
     jsvUnLock2(parentObj, parent);
   }
 #endif
@@ -623,7 +623,7 @@ JsVar *jswrap_graphics_createArrayBuffer(int width, int height, int bpp, JsVar *
   }
 
   lcdInit_ArrayBuffer(&gfx);
-  graphicsSetVarInitial(&gfx);
+  graphicsSetVar(&gfx);
   return parent;
 }
 
@@ -680,7 +680,7 @@ JsVar *jswrap_graphics_createCallback(int width, int height, int bpp, JsVar *cal
   graphicsStructInit(&gfx,width,height,bpp);
   gfx.graphicsVar = parent;
   lcdInit_JS(&gfx, callbackSetPixel, callbackFillRect);
-  graphicsSetVarInitial(&gfx);
+  graphicsSetVar(&gfx);
   jsvUnLock2(callbackSetPixel, callbackFillRect);
   return parent;
 }
@@ -715,7 +715,7 @@ JsVar *jswrap_graphics_createSDL(int width, int height, int bpp) {
   graphicsStructInit(&gfx,width,height,bpp);
   gfx.graphicsVar = parent;
   lcdInit_SDL(&gfx);
-  graphicsSetVarInitial(&gfx);
+  graphicsSetVar(&gfx);
   return parent;
 }
 #endif
