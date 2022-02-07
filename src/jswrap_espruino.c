@@ -1223,7 +1223,7 @@ along with the variables they link to. Can be used
 to visualise where memory is used.
  */
 void jswrap_e_dumpVariables() {
-  jsiConsolePrintf("ref,size,name,links...\n");
+  jsiConsolePrintf("ref,size,flags,name,links...\n");
   for (unsigned int i=0;i<jsvGetMemoryTotal();i++) {
     JsVarRef ref = i+1;
     JsVar *v = _jsvGetAddressOf(ref);
@@ -1243,7 +1243,7 @@ void jswrap_e_dumpVariables() {
         jsvUnLock(child);
       }
     }
-    jsiConsolePrintf("%d,%d,",ref,size);
+    jsiConsolePrintf("%d,%d,%d,",ref,size,v->flags&JSV_VARTYPEMASK);
     if (jsvIsName(v)) jsiConsolePrintf("%q,",v);
     else jsiConsolePrintf(",",v);
 
