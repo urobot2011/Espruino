@@ -69,7 +69,8 @@ chip = {
 };
 
 devices = {
-  'BTN1' : { 'pin' : 'D45', 'pinstate' : 'IN_PULLUP' },
+  'BTN1' : { 'pin' : 'D46', 'pinstate' : 'IN_PULLUP' },
+  'BTN2' : { 'pin' : 'D45', 'pinstate' : 'IN_PULLUP' },
 
   'SPIFLASH' : {
             'pin_cs' : 'D20',
@@ -137,7 +138,9 @@ def get_pins():
   pinutils.findpin(pins, "PD29", True)["functions"]["ADC1_IN5"]=0;
   pinutils.findpin(pins, "PD30", True)["functions"]["ADC1_IN6"]=0;
   pinutils.findpin(pins, "PD31", True)["functions"]["ADC1_IN7"]=0;
-
+   # Make buttons and LEDs negated
+  pinutils.findpin(pins, "PD45", True)["functions"]["NEGATED"]=0;
+  pinutils.findpin(pins, "PD46", True)["functions"]["NEGATED"]=0;
   # everything is non-5v tolerant
   for pin in pins:
     pin["functions"]["3.3"]=0;
