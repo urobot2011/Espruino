@@ -23,16 +23,22 @@ info = {
 #     'NEOPIXEL'
    ],
    'makefile' : [
-     'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
+#     'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
      'DEFINES += -DCONFIG_NFCT_PINS_AS_GPIOS', 
+     'DEFINES += -DESPR_LSE_ENABLE', # Ensure low speed external osc enabled
+     'DEFINES += -DESPR_DCDC_ENABLE=1', # Use DC/DC converter
 #     'CFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main',
 #     'LDFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main -nostartfiles',
-     'DEFINES += -DNRF_SDH_BLE_GATT_MAX_MTU_SIZE=131', #59 77 131 104
+     'DEFINES += -DNRF_SDH_BLE_GATT_MAX_MTU_SIZE=131', # 23+x*27 rule as per https://devzone.nordicsemi.com/f/nordic-q-a/44825/ios-mtu-size-why-only-185-bytes
+     'LDFLAGS += -Xlinker --defsym=LD_APP_RAM_BASE=0x2ec0', # set RAM base to match MTU
      'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES -DGRAPHICS_ANTIALIAS',
+     'DEFINES+=-DNO_DUMP_HARDWARE_INITIALISATION', # don't dump hardware init - not used and saves 1k of flash
+     'DEFINES += -DESPR_NO_LINE_NUMBERS=1', # we execute mainly from flash, so line numbers can be worked out
      'DEFINES += -DBLUETOOTH_NAME_PREFIX=\'"G5"\'',
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
+#     'DEFINES += -DBUTTONPRESS_TO_REBOOT_BOOTLOADER',
      'USE_LCD_SPI_UNBUF=1',
      'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120 -DLCD_SPI_BIGPIX',
      'DEFINES += -DESPR_USE_SPI3 -DSPI0_USE_EASY_DMA=1',
@@ -40,6 +46,9 @@ info = {
      'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1',
      'DEFINES += -DNO_DUMP_HARDWARE_INITIALISATION -DUSE_FONT_6X8',
      'NRF_SDK15=1'
+     'INCLUDE += -I$(ROOT)/libs/misc',
+     'WRAPPERSOURCES += libs/misc/jswrap_stepcount.c',
+     'SOURCES += libs/misc/stepcount.c'
    ]
  }
 };
@@ -69,8 +78,8 @@ chip = {
 };
 
 devices = {
-  'BTN1' : { 'pin' : 'D46', 'pinstate' : 'IN_PULLUP' },
-  'BTN2' : { 'pin' : 'D45', 'pinstate' : 'IN_PULLUP' },
+  'BTN1' : { 'pin' : 'D46', 'pinstate' : 'IN_PULLDOWN' },
+  'BTN2' : { 'pin' : 'D45', 'pinstate' : 'IN_PULLDOWN' },
 
   'SPIFLASH' : {
             'pin_cs' : 'D20',
