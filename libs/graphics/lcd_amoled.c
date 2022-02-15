@@ -95,7 +95,7 @@ void lcd_amoled_flip(JsGraphics *gfx) {
   int x2 = (x1 == (gfx->data.modMaxX) ? x1+1 : (gfx->data.modMaxX)); 
   int y2 = (y1 == (gfx->data.modMaxY) ? y1+1 : (gfx->data.modMaxY)); 
   x2 = (x2-x1)&1 ? x2 :x2+1; 
-  x2 = (y2-y1)&1 ? y2 :y2+1;
+  y2 = (y2-y1)&1 ? y2 :y2+1;
   set_cs();
   disp_spi_transfer_addrwin(x1, y1, x2, y2);
   int chunk_index=0;
@@ -252,7 +252,7 @@ void lcd_amoled_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsign
       int endx = x2;
       if (x1 & 1) {lcd_amoled_setPixel(gfx,x1,y,col); ++startx;}
       if (startx==endx) {
-        lcd_amoled_setPixel(gfx,endx,y,col)
+        lcd_amoled_setPixel(gfx,endx,y,col);
       } else {
         if (!(endx&1)) {lcd_amoled_setPixel(gfx,endx,y,col); --endx;}
         for (int x=startx; x<endx; x+=2) 
