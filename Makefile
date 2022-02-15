@@ -419,6 +419,11 @@ ifdef USE_LCD_SPI_UNBUF
   WRAPPERSOURCES += libs/graphics/lcd_spi_unbuf.c
 endif
 
+ifdef USE_LCD_AMOLED
+  DEFINES += -DUSE_LCD_AMOLED
+  WRAPPERSOURCES += libs/graphics/lcd_amoled.c
+endif
+
 ifeq ($(USE_TERMINAL),1)
   DEFINES += -DUSE_TERMINAL
   WRAPPERSOURCES += libs/graphics/jswrap_terminal.c
