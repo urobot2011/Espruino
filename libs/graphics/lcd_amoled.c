@@ -94,11 +94,13 @@ void lcd_amoled_flip(JsGraphics *gfx) {
   int y1 = (gfx->data.modMinY)&~1; 
   int x2 = (x1 == (gfx->data.modMaxX) ? x1+1 : (gfx->data.modMaxX)); 
   int y2 = (y1 == (gfx->data.modMaxY) ? y1+1 : (gfx->data.modMaxY)); 
+  x2 = (x2-x1)&1 ? x2 :x2+1; 
+  x2 = (y2-y1)&1 ? y2 :y2+1;
   set_cs();
   disp_spi_transfer_addrwin(x1, y1, x2, y2);
   int chunk_index=0;
   for (int y=y1; y<=y2; y++) {
-    for (int x=x1; x<x2; x+=2) {
+    for (int x=x1; x<=x2; x+=2) {
       unsigned char c = lcdBuffer[y*LCD_STRIDE + (x>>1)];
       _chunk_buffer[chunk_index++] = lcdPalette[c >> 4];
       _chunk_buffer[chunk_index++] = lcdPalette[c & 15];
@@ -243,12 +245,20 @@ void lcd_amoled_setPixel(JsGraphics *gfx, int x, int y, unsigned int col) {
 void lcd_amoled_fillRect(JsGraphics *gfx, int x1, int y1, int x2, int y2, unsigned int col) {
   unsigned char cc = col<<4 | col;
   for (int y=y1; y<=y2; y++) {
-    int startx = x1; 
-    int endx = x2;
-    if (x1 & 1) {lcd_amoled_setPixel(gfx,x1,y,col); ++startx;}
-    if (x2 & 1) {lcd_amoled_setPixel(gfx,x2,y,col); --endx;}
-    for (int x=startx; x<=endx; x+=2) 
-        lcdBuffer[y*LCD_STRIDE + (x>>1)]=cc;
+    if (x1==x2) {
+      lcd_amoled_setPixel(gfx,x1,y,col);
+    } else {
+      int startx = x1; 
+      int endx = x2;
+      if (x1 & 1) {lcd_amoled_setPixel(gfx,x1,y,col); ++startx;}
+      if (startx==endx) {
+        lcd_amoled_setPixel(gfx,endx,y,col)
+      } else {
+        if (!(endx&1)) {lcd_amoled_setPixel(gfx,endx,y,col); --endx;}
+        for (int x=startx; x<endx; x+=2) 
+            lcdBuffer[y*LCD_STRIDE + (x>>1)]=cc;      
+      }
+    }
   }
 }
 
