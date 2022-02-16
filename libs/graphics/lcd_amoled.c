@@ -109,7 +109,7 @@ void lcd_amoled_flip(JsGraphics *gfx) {
        _chunk_buffer[chunk_index++] = lcdPalette[c >> 4];
        _chunk_buffer[chunk_index++] = lcdPalette[c & 15];
       if (chunk_index>=CHUNKSIZE) {
-         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,CHUNKSIZE,endxfer);
+         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,CHUNKSIZE*2,endxfer);
            _current_buf = _current_buf?0:1;
            _chunk_buffer = &_chunk_buffers[_current_buf][0];
            chunk_index=0;
@@ -117,7 +117,7 @@ void lcd_amoled_flip(JsGraphics *gfx) {
     }
   }
   if (chunk_index>0) {
-         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,chunk_index,NULL);
+         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,chunk_index*2,NULL);
   }
   jshSPIWait(_device); //wait for any async transfer to finish
   rel_cs();
@@ -227,7 +227,7 @@ JsVar *jswrap_lcd_amoled_connect(JsVar *device, JsVar *options) {
   jshPinOutput(_pin_cs, 1);
   jshPinSetValue(_pin_cs, 1);
   
-  lcd_amoled_setCallbacks(&graphicsInternal);
+  lcd_amoled_setCallbacks(&graSPILCD_PALETTEphicsInternal);
 
 // Create 'flip' fn
   JsVar *fn = jsvNewNativeFunction((void (*)(void))lcd_flip, JSWAT_VOID|JSWAT_THIS_ARG|(JSWAT_BOOL << (JSWAT_BITS*1)));
@@ -314,3 +314,22 @@ void jswrap_lcd_amoled_command(int cmd, JsVar *data) {
   rel_cs();
 }
 
+/*JSON{
+  "type" : "staticmethod",
+  "class" : "lcd_amoled",
+  "name" : "setPaletteColor",
+  "generate" : "jswrap_lcd_amoled_setPaletteColor",
+  "params" : [
+    ["i","int","Palette index 0..15"],
+    ["c","int","New Color"]
+  ],
+  "return" : ["int","Returns the old colour with index i."]
+}
+   Access to display palette 
+ */
+int jswrap_lcd_amoled_setPaletteColor(int i, int c) {
+    if (i<0 || i>15) return 0;
+    unsigned short tmp = __builtin_bswap16(lcdPalette[i]);
+    lcdPalette[i] = _builtin_bswap16(c);
+    return tmp;
+}

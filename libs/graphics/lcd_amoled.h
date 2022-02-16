@@ -30,3 +30,4 @@ bool jswrap_lcd_amoled_idle();
 JsVar *jswrap_lcd_amoled_connect(JsVar *device, JsVar *options);
 void lcd_amoled_setCallbacks(JsGraphics *gfx);
 void jswrap_lcd_amoled_command(int cmd, JsVar *data);
+int jswrap_lcd_amoled_setPaletteColor(int i, int c);
