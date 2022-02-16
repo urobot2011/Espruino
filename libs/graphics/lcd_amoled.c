@@ -227,7 +227,7 @@ JsVar *jswrap_lcd_amoled_connect(JsVar *device, JsVar *options) {
   jshPinOutput(_pin_cs, 1);
   jshPinSetValue(_pin_cs, 1);
   
-  lcd_amoled_setCallbacks(&graSPILCD_PALETTEphicsInternal);
+  lcd_amoled_setCallbacks(&graphicsInternal);
 
 // Create 'flip' fn
   JsVar *fn = jsvNewNativeFunction((void (*)(void))lcd_flip, JSWAT_VOID|JSWAT_THIS_ARG|(JSWAT_BOOL << (JSWAT_BITS*1)));
@@ -330,6 +330,6 @@ void jswrap_lcd_amoled_command(int cmd, JsVar *data) {
 int jswrap_lcd_amoled_setPaletteColor(int i, int c) {
     if (i<0 || i>15) return 0;
     unsigned short tmp = __builtin_bswap16(lcdPalette[i]);
-    lcdPalette[i] = _builtin_bswap16(c);
+    lcdPalette[i] = __builtin_bswap16(c);
     return tmp;
 }
