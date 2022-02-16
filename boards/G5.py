@@ -6,13 +6,13 @@
 import pinutils;
 
 info = {
- 'name' : "ROCK",
+ 'name' : "G5",
  'link' :  [ "https://www.kospet.com/products/kospet-magic-3" ],
  'espruino_page_link' : 'G5',
  'default_console' : "EV_BLUETOOTH",
- 'variables' : 14000-300, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
+ 'variables' : 14000-7300, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
- 'binary_name' : 'espruino_%v_g5.hex',
+ 'binary_name' : 'espruino_%v_g5buf.hex',
  'build' : {
    'optimizeflags' : '-Os',
    'libraries' : [
@@ -39,8 +39,8 @@ info = {
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
 #     'DEFINES += -DBUTTONPRESS_TO_REBOOT_BOOTLOADER',
-     'USE_LCD_SPI_UNBUF=1',
-     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120 -DLCD_SPI_BIGPIX',
+     'USE_LCD_AMOLED=1',
+     'DEFINES+=-DESPR_GRAPHICS_INTERNAL=1',
      'DEFINES += -DESPR_USE_SPI3 -DSPI0_USE_EASY_DMA=1',
      'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
      'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1',
@@ -91,6 +91,19 @@ devices = {
             'pin_rst' : 'D24', # no reset but this is HOLD pin, we want it set to 1 like RST
             'size' : 8192*1024, # 4MB
             'memmap_base' : 0x60000000,
+          },
+      'LCD' : {
+            'width' : 454, 'height' : 454, 'bpp' : 4, # due to frame buffer size
+            'controller' : 'amoled',
+            'pin_dc' : 'D21',
+            'pin_cs' : 'D26',
+            'pin_rst' : 'D40',
+            'pin_sck' : 'D5',
+            'pin_mosi' : 'D11',
+            'pin_miso' : 'D7',
+            'pin_en' : 'D3', 
+            'pin_bl' : 'D34', # TESTED!
+            'bitrate' : 32000000
           }
 
 

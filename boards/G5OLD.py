@@ -8,11 +8,11 @@ import pinutils;
 info = {
  'name' : "ROCK",
  'link' :  [ "https://www.kospet.com/products/kospet-magic-3" ],
- 'espruino_page_link' : 'G5BUF',
+ 'espruino_page_link' : 'G5',
  'default_console' : "EV_BLUETOOTH",
- 'variables' : 14000-7300, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
+ 'variables' : 14000-300, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
- 'binary_name' : 'espruino_%v_g5buf.hex',
+ 'binary_name' : 'espruino_%v_g5.hex',
  'build' : {
    'optimizeflags' : '-Os',
    'libraries' : [
@@ -39,8 +39,8 @@ info = {
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
 #     'DEFINES += -DBUTTONPRESS_TO_REBOOT_BOOTLOADER',
-     'USE_LCD_AMOLED=1',
-     'DEFINES+=-DESPR_GRAPHICS_INTERNAL=1',
+     'USE_LCD_SPI_UNBUF=1',
+     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120 -DLCD_SPI_BIGPIX',
      'DEFINES += -DESPR_USE_SPI3 -DSPI0_USE_EASY_DMA=1',
      'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
      'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1',

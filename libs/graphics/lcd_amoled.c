@@ -16,7 +16,7 @@
   "type" : "class",
   "class" : "lcd_amoled"
 }*/
-
+#include "platform_config.h"
 #include "lcd_amoled.h"
 #include "jsutils.h"
 #include "jsinteractive.h"
@@ -35,14 +35,12 @@ static int _lastx=-1;
 static int _lasty=-1;
 static IOEventFlags _device;
 
-#define LCD_WIDTH 454
-#define LCD_HEIGHT 454
-#define LCD_BPP 4
-#define LCD_STRIDE 227
+
+#define LCD_STRIDE ((LCD_WIDTH*LCD_BPP+7)>>3)
+#define CHUNKSIZE 256
 unsigned char lcdBuffer[LCD_STRIDE*LCD_HEIGHT];
 unsigned short lcdPalette[16];
-unsigned short _chunk_buffer[256];
-
+static unsigned short _chunk_buffers[2][CHUNKSIZE]; 
 
 static void set_cs(){
 #ifdef ESPR_USE_SPI3
@@ -87,6 +85,10 @@ static void disp_spi_transfer_addrwin(int x1, int y1, int x2, int y2) {
   spi_cmd(0x2C, NULL, NULL);
 }
 
+static void endxfer(){  
+  // do nothing
+}
+
 void lcd_amoled_flip(JsGraphics *gfx) {
   if (gfx->data.modMinX > gfx->data.modMaxX) return; // nothing to do!
   //start on even row and col addresses
@@ -98,22 +100,26 @@ void lcd_amoled_flip(JsGraphics *gfx) {
   y2 = (y2-y1)&1 ? y2 :y2+1;
   set_cs();
   disp_spi_transfer_addrwin(x1, y1, x2, y2);
+  unsigned short *_chunk_buffer = &_chunk_buffers[0][0];
+  int _current_buf = 0;
   int chunk_index=0;
   for (int y=y1; y<=y2; y++) {
     for (int x=x1; x<=x2; x+=2) {
       unsigned char c = lcdBuffer[y*LCD_STRIDE + (x>>1)];
-      _chunk_buffer[chunk_index++] = lcdPalette[c >> 4];
-      _chunk_buffer[chunk_index++] = lcdPalette[c & 15];
-      if (chunk_index>=256) {
-         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,512,NULL);
-         chunk_index=0;
+       _chunk_buffer[chunk_index++] = lcdPalette[c >> 4];
+       _chunk_buffer[chunk_index++] = lcdPalette[c & 15];
+      if (chunk_index>=CHUNKSIZE) {
+         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,CHUNKSIZE,endxfer);
+           _current_buf = _current_buf?0:1;
+           _chunk_buffer = &_chunk_buffers[_current_buf][0];
+           chunk_index=0;
       }
     }
   }
   if (chunk_index>0) {
-         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,chunk_index*2,NULL);
-         chunk_index=0;
+         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,chunk_index,NULL);
   }
+  jshSPIWait(_device); //wait for any async transfer to finish
   rel_cs();
     // Reset modified-ness
   gfx->data.modMaxX = -32768;
