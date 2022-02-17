@@ -35,16 +35,11 @@ static int _lastx=-1;
 static int _lasty=-1;
 static IOEventFlags _device;
 
-// 16 color 8 bit MAC OS palette
-//const uint16_t PALETTE_4BIT[16] = { 0x0,0x444,0x888,0xbbb,0x963,0x630,0x60,0xa0,0x9f,0xc,0x309,0xf09,0xd00,0xf60,0xff0,0xfff };
-// 8-bit color is rrrgggbb
-const unsigned char PALETTE_4BIT_TO_8BIT[16] = {0x0,0x49,0x92,0x66,0x8c,0x62,0x0c,0x14,0x0b,0x03,0x22,0xe2,0xd0,0xec,0xfc,0xff};
-
 #define LCD_STRIDE ((LCD_WIDTH*LCD_BPP+7)>>3)
 #define CHUNKSIZE 256
 unsigned char lcdBuffer[LCD_STRIDE*LCD_HEIGHT];
-unsigned char lcdPalette[16];
-static unsigned char _chunk_buffers[2][CHUNKSIZE]; 
+unsigned short lcdPalette[16];
+static unsigned short _chunk_buffers[2][CHUNKSIZE]; 
 
 static void set_cs(){
 #ifdef ESPR_USE_SPI3
@@ -95,14 +90,16 @@ static void endxfer(){
 
 void lcd_amoled_flip(JsGraphics *gfx) {
   if (gfx->data.modMinX > gfx->data.modMaxX) return; // nothing to do!
-  //start on even row and col addresses and trows & cols must be even
+  //start on even row and col addresses
   int x1 = (gfx->data.modMinX)&~1; 
   int y1 = (gfx->data.modMinY)&~1; 
-  int x2 = (gfx->data.modMaxX-x1+1)&1 ? gfx->data.modMaxX+1 : gfx->data.modMaxX; 
-  int y2 =  (gfx->data.modMaxY-x1+1)&1 ? gfx->data.modMaxY+1 : gfx->data.modMaxY;  
+  int x2 = (x1 == (gfx->data.modMaxX) ? x1+1 : (gfx->data.modMaxX)); 
+  int y2 = (y1 == (gfx->data.modMaxY) ? y1+1 : (gfx->data.modMaxY)); 
+  x2 = (x2-x1)&1 ? x2 :x2+1; 
+  y2 = (y2-y1)&1 ? y2 :y2+1;
   set_cs();
   disp_spi_transfer_addrwin(x1, y1, x2, y2);
-  unsigned char *_chunk_buffer = &_chunk_buffers[0][0];
+  unsigned short *_chunk_buffer = &_chunk_buffers[0][0];
   int _current_buf = 0;
   int chunk_index=0;
   for (int y=y1; y<=y2; y++) {
@@ -111,7 +108,7 @@ void lcd_amoled_flip(JsGraphics *gfx) {
        _chunk_buffer[chunk_index++] = lcdPalette[c >> 4];
        _chunk_buffer[chunk_index++] = lcdPalette[c & 15];
       if (chunk_index>=CHUNKSIZE) {
-         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,CHUNKSIZE,endxfer);
+         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,CHUNKSIZE*2,endxfer);
            _current_buf = _current_buf?0:1;
            _chunk_buffer = &_chunk_buffers[_current_buf][0];
            chunk_index=0;
@@ -119,7 +116,7 @@ void lcd_amoled_flip(JsGraphics *gfx) {
     }
   }
   if (chunk_index>0) {
-         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,chunk_index,NULL);
+         jshSPISendMany(_device,(uint8_t *)_chunk_buffer,NULL,chunk_index*2,NULL);
   }
   jshSPIWait(_device); //wait for any async transfer to finish
   rel_cs();
@@ -193,7 +190,7 @@ bool jswrap_lcd_amoled_idle() {
   "return_object" : "Graphics"
 }*/
 JsVar *jswrap_lcd_amoled_connect(JsVar *device, JsVar *options) { 
-  for(int i=0;i<16;i++) lcdPalette[i] = PALETTE_4BIT_TO_8BIT[i];
+  for(int i=0;i<16;i++) lcdPalette[i] = __builtin_bswap16(PALETTE_4BIT[i]);
   JsVar *parent = jspNewObject(0, "Graphics");
   if (!parent) {
     jsExceptionHere(JSET_ERROR,"creating new object Graphics");
