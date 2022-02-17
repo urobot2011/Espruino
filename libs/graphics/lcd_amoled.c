@@ -38,7 +38,7 @@ static IOEventFlags _device;
 // 16 color 8 bit MAC OS palette
 //const uint16_t PALETTE_4BIT[16] = { 0x0,0x444,0x888,0xbbb,0x963,0x630,0x60,0xa0,0x9f,0xc,0x309,0xf09,0xd00,0xf60,0xff0,0xfff };
 // 8-bit color is rrrgggbb
-const unsigned char PALETTE_4BIT_TO_8BIT[16] = {0x0,0x49,0x92,0x66,0x8c,0x62,0x0c,0x14,0x0b,0x03,0x22,0xe2,0xd0,0xec,0xfc,0xff};
+const unsigned char MY_PALETTE_4BIT_TO_8BIT[16] = {0x0,0x49,0x92,0xb6,0x8c,0x64,0x0c,0x14,0x0b,0x03,0x22,0xe2,0xc0,0xec,0xfc,0xff};
 
 #define LCD_STRIDE ((LCD_WIDTH*LCD_BPP+7)>>3)
 #define CHUNKSIZE 256
@@ -98,8 +98,8 @@ void lcd_amoled_flip(JsGraphics *gfx) {
   //start on even row and col addresses and trows & cols must be even
   int x1 = (gfx->data.modMinX)&~1; 
   int y1 = (gfx->data.modMinY)&~1; 
-  int x2 = (gfx->data.modMaxX-x1+1)&1 ? gfx->data.modMaxX+1 : gfx->data.modMaxX; 
-  int y2 =  (gfx->data.modMaxY-x1+1)&1 ? gfx->data.modMaxY+1 : gfx->data.modMaxY;  
+  int x2 = ((gfx->data.modMaxX)-x1+1)&1 ? (gfx->data.modMaxX)+1 : gfx->data.modMaxX; 
+  int y2 =  ((gfx->data.modMaxY)-x1+1)&1 ? (gfx->data.modMaxY)+1 : gfx->data.modMaxY;  
   set_cs();
   disp_spi_transfer_addrwin(x1, y1, x2, y2);
   unsigned char *_chunk_buffer = &_chunk_buffers[0][0];
@@ -193,7 +193,7 @@ bool jswrap_lcd_amoled_idle() {
   "return_object" : "Graphics"
 }*/
 JsVar *jswrap_lcd_amoled_connect(JsVar *device, JsVar *options) { 
-  for(int i=0;i<16;i++) lcdPalette[i] = PALETTE_4BIT_TO_8BIT[i];
+  for(int i=0;i<16;i++) lcdPalette[i] = MY_PALETTE_4BIT_TO_8BIT[i];
   JsVar *parent = jspNewObject(0, "Graphics");
   if (!parent) {
     jsExceptionHere(JSET_ERROR,"creating new object Graphics");
@@ -331,7 +331,7 @@ void jswrap_lcd_amoled_command(int cmd, JsVar *data) {
  */
 int jswrap_lcd_amoled_setPaletteColor(int i, int c) {
     if (i<0 || i>15) return 0;
-    unsigned short tmp = __builtin_bswap16(lcdPalette[i]);
-    lcdPalette[i] = __builtin_bswap16(c);
+    unsigned char tmp = lcdPalette[i];
+    lcdPalette[i] = c;
     return tmp;
 }
