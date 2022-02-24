@@ -419,6 +419,11 @@ ifdef USE_LCD_SPI_UNBUF
   WRAPPERSOURCES += libs/graphics/lcd_spi_unbuf.c
 endif
 
+ifdef USE_LCD_SPI_BUF
+  DEFINES += -DUSE_LCD_SPI_BUF
+  WRAPPERSOURCES += libs/graphics/lcd_spi_buf.c
+endif
+
 ifdef USE_LCD_AMOLED
   DEFINES += -DUSE_LCD_AMOLED
   WRAPPERSOURCES += libs/graphics/lcd_amoled.c

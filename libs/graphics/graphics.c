@@ -40,6 +40,9 @@
 #ifdef USE_LCD_SPI_UNBUF
 #include "lcd_spi_unbuf.h"
 #endif
+#ifdef USE_LCD_SPI_BUF
+#include "lcd_spi_buf.h"
+#endif
 #ifdef USE_LCD_AMOLED
 #include "lcd_amoled.h"
 #endif
@@ -198,6 +201,10 @@ bool graphicsSetCallbacks(JsGraphics *gfx) {
 #ifdef USE_LCD_SPI_UNBUF
   } else if (gfx->data.type == JSGRAPHICSTYPE_LCD_SPI_UNBUF) {
     lcd_spi_unbuf_setCallbacks(gfx);
+#endif
+#ifdef USE_LCD_SPI_BUF
+  } else if (gfx->data.type == JSGRAPHICSTYPE_LCD_SPI_BUF) {
+    lcd_spi_buf_setCallbacks(gfx);
 #endif
 #ifdef USE_LCD_AMOLED
   } else if (gfx->data.type == JSGRAPHICSTYPE_LCD_AMOLED) {

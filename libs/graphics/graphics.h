@@ -43,6 +43,7 @@ typedef enum {
   JSGRAPHICSTYPE_ST7789_8BIT, ///< ST7789 in 8 bit mode
   JSGRAPHICSTYPE_MEMLCD,      ///< Memory LCD
   JSGRAPHICSTYPE_LCD_SPI_UNBUF, ///< LCD SPI unbuffered 16 bit driver
+  JSGRAPHICSTYPE_LCD_SPI_BUF, ///< LCD SPI buffered 16 bit driver
   JSGRAPHICSTYPE_LCD_AMOLED   ///< AMOLED SPI buffered 4 bit palletted driver
 } JsGraphicsType;
 
