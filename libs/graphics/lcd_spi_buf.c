@@ -207,7 +207,7 @@ JsVar *jswrap_lcd_spi_buf_connect(JsVar *device, JsVar *options) {
     jsvUnLock(parent);
     return NULL;
   }
-  graphicsStructInit(&graphicsInternal,inf.width,inf.height,4);
+  graphicsStructInit(&graphicsInternal,inf.width,inf.height,16);
   graphicsInternal.data.type = JSGRAPHICSTYPE_LCD_SPI_BUF;
   graphicsInternal.graphicsVar = parent;
   
