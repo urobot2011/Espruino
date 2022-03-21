@@ -1507,7 +1507,7 @@ void touchHandlerInternal(int tx, int ty, int pts, int gesture) {
   touchPts = pts;
   static int lastGesture = 0;
   if (gesture!=lastGesture) {
-    flipTimer=0;
+    //flipTimer=0;
     IOEvent evt;
     switch (gesture) { // gesture
     case 0:break; // no gesture

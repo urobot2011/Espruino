@@ -30,7 +30,7 @@ info = {
      'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES -DGRAPHICS_ANTIALIAS',
      'DEFINES += -DBLUETOOTH_NAME_PREFIX=\'"ROCK"\'',
      'LDFLAGS += -Xlinker --defsym=LD_APP_RAM_BASE=0x2ec0',#2bf0 0x3058#37f8 0x3720
-     'LDFLAGS += -Xlinker --defsym=LD_NOINIT_SIZE=0x1290',#2bf0 0x3058#37f8 0x3720
+ #     'LDFLAGS += -Xlinker --defsym=LD_NOINIT_SIZE=0x1290',#2bf0 0x3058#37f8 0x3720
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
@@ -44,7 +44,7 @@ info = {
 #     'DEFINES += -DSAVE_ON_FLASH_SAVE -DSAVE_ON_FLASH_ERRORMSG -DSAVE_ON_FLASH_RANDOM -DSAVE_ON_FLASH_WAVEFORM -DSAVE_ON_FLASH_MATH -DSAVE_ON_FLASH_SWSERIAL -DSAVE_ON_FLASH_FFT -DSAVE_ON_FLASH_DUMP',
 #     'DEFINES+=-DDUMP_IGNORE_VARIABLES=\'"g\\0"\'',
      'DEFINES += -DFDS_VIRTUAL_PAGES=10', #should match fstorage_pages below
-     'DEFINES += -DBANGLEJS',
+#     'DEFINES += -DBANGLEJS',
      'NRF_SDK15=1',
      'INCLUDE += -I$(ROOT)/libs/misc',
      'WRAPPERSOURCES += libs/misc/jswrap_stepcount.c',
@@ -68,12 +68,12 @@ chip = {
   'adc' : 1,
   'dac' : 0,
   'saved_code' : {
-  'address' : ((0xf8 - fstorage_pages - save_code_pages) * 4096), # Bootloader at 0xF8000
+  #'address' : ((0xf8 - fstorage_pages - save_code_pages) * 4096), # Bootloader at 0xF8000
   'page_size' : 4096,
-  'pages' : save_code_pages,
+  #'pages' : save_code_pages,
   'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages + save_code_pages)*4), # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 0x100-0xe0=0x20, FS 2, code 96. Each page is 4 kb.
-  'address2' : 0x60000000, # put this in external spiflash (see below) - temp reduce size as toxic s/w at start
-  'pages2' : 2048, # Entire 8MB of external flash
+  'address' : 0x60000000, # put this in external spiflash (see below) - temp reduce size as toxic s/w at start
+  'pages' : 2048, # Entire 8MB of external flash
    },
 };
 

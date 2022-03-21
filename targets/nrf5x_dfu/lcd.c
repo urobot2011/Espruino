@@ -345,10 +345,10 @@ void lcd_flip() {
     jshPinSetValue(LCD_SPI_DC, 0); // command
     lcd_wr(0x2B);
     jshPinSetValue(LCD_SPI_DC, 1); // data
-    lcd_wr(0);
-    lcd_wr(ymin);
-    lcd_wr(0);
-    lcd_wr(ymax+1);
+    lcd_wr(ymin>>8);
+    lcd_wr(ymin&0xFF);
+    lcd_wr((ymax+1)>>8);
+    lcd_wr((ymax+1)&0xFF);
     jshPinSetValue(LCD_SPI_DC, 0); // command
     lcd_wr(0x2C);
     jshPinSetValue(LCD_SPI_DC, 1); // data
@@ -362,7 +362,7 @@ void lcd_flip() {
     }
     jshPinSetValue(LCD_SPI_CS,1);
   }
-  ymin=LCD_HEIGHT;
+  ymin=LCD_DATA_HEIGHT;
   ymax=0;
 }
 void lcd_init() {
@@ -391,9 +391,9 @@ void lcd_init() {
   jshDelayMicroseconds(10000);
   lcd_cmd(0x13, 0, NULL); // NORON
   jshDelayMicroseconds(10000);
-  lcd_cmd(0x36, 1, "\xC0"); // MADCTL
+  lcd_cmd(0x36, 1, "\x00"); // MADCTL  was "\xC0"
   jshDelayMicroseconds(10000);
-  lcd_cmd(0x37, 2, "\0\x50"); // VSCRSADD - vertical scroll
+  lcd_cmd(0x37, 2, "\0\x10"); // VSCRSADD - vertical scroll 
   jshDelayMicroseconds(10000);
   lcd_cmd(0x35, 0, NULL); // Tear on
   jshDelayMicroseconds(10000);
@@ -890,7 +890,7 @@ void lcd_clear() {
   lcdy=LCD_START_Y;
 #ifdef LCD_STORE_MODIFIED
   ymin=0;
-  ymax=LCD_HEIGHT-1;
+  ymax=LCD_DATA_HEIGHT-1;
 #endif
   lcd_flip();
 }

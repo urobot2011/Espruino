@@ -6,13 +6,13 @@
 import pinutils;
 
 info = {
- 'name' : "ROCK",
+ 'name' : "GW32",
  'link' :  [ "https://www.kospet.com/products/kospet-magic-3" ],
- 'espruino_page_link' : 'G5',
+ 'espruino_page_link' : 'GW32',
  'default_console' : "EV_BLUETOOTH",
- 'variables' : 14000-300, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
+ 'variables' : 14000-7500, # How many variables are allocated for Espruino to use. RAM will be overflowed if this number is too high and code won't compile.
  'bootloader' : 1,
- 'binary_name' : 'espruino_%v_g5.hex',
+ 'binary_name' : 'espruino_%v_gw32.hex',
  'build' : {
    'optimizeflags' : '-Os',
    'libraries' : [
@@ -24,37 +24,34 @@ info = {
    ],
    'makefile' : [
 #     'DEFINES += -DCONFIG_GPIO_AS_PINRESET', # Allow the reset pin to work
-     'DEFINES += -DCONFIG_NFCT_PINS_AS_GPIOS', 
-     'DEFINES += -DESPR_LSE_ENABLE', # Ensure low speed external osc enabled
-     'DEFINES += -DESPR_DCDC_ENABLE=1', # Use DC/DC converter
 #     'CFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main',
 #     'LDFLAGS += -D__STARTUP_CLEAR_BSS -D__START=main -nostartfiles',
-     'DEFINES += -DNRF_SDH_BLE_GATT_MAX_MTU_SIZE=131', # 23+x*27 rule as per https://devzone.nordicsemi.com/f/nordic-q-a/44825/ios-mtu-size-why-only-185-bytes
-     'LDFLAGS += -Xlinker --defsym=LD_APP_RAM_BASE=0x2ec0', # set RAM base to match MTU
+     'DEFINES += -DNRF_SDH_BLE_GATT_MAX_MTU_SIZE=131', #59 77 131 104
      'DEFINES+=-DUSE_FONT_6X8 -DGRAPHICS_PALETTED_IMAGES -DGRAPHICS_ANTIALIAS',
-     'DEFINES+=-DNO_DUMP_HARDWARE_INITIALISATION', # don't dump hardware init - not used and saves 1k of flash
-     'DEFINES += -DESPR_NO_LINE_NUMBERS=1', # we execute mainly from flash, so line numbers can be worked out
-     'DEFINES += -DBLUETOOTH_NAME_PREFIX=\'"G5"\'',
+     'DEFINES += -DBLUETOOTH_NAME_PREFIX=\'"GW32"\'',
+     'LDFLAGS += -Xlinker --defsym=LD_APP_RAM_BASE=0x2ec0',#2bf0 0x3058#37f8 0x3720
+     'LDFLAGS += -Xlinker --defsym=LD_NOINIT_SIZE=0x1290',#2bf0 0x3058#37f8 0x3720
      'DFU_PRIVATE_KEY=targets/nrf5x_dfu/dfu_private_key.pem',
      'DFU_SETTINGS=--application-version 0xff --hw-version 52 --sd-req 0xa9,0xae,0xb6', #S140 6.0.0
      'BOOTLOADER_SETTINGS_FAMILY=NRF52840',
-#     'DEFINES += -DBUTTONPRESS_TO_REBOOT_BOOTLOADER',
-     'USE_LCD_SPI_UNBUF=1',
-     'DEFINES+= -DSPISENDMANY_BUFFER_SIZE=120 -DLCD_SPI_BIGPIX',
+     'USE_LCD_SPI_BUF=1',
+     'DEFINES+=-DESPR_GRAPHICS_INTERNAL=1',
      'DEFINES += -DESPR_USE_SPI3 -DSPI0_USE_EASY_DMA=1',
      'ESPR_BLUETOOTH_ANCS=1', # Enable ANCS (Apple notifications) support
-     'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1',
+#     'BLACKLIST=boards/MAGIC3.blocklist', # force some stuff to be removed to save space
+     'DEFINES += -DNRF_BL_DFU_INSECURE=1 -DNRF_BOOTLOADER_NO_WRITE_PROTECT=1  -DSPIFLASH_SLEEP_CMD=1  -DESPR_DCDC_ENABLE=1',
      'DEFINES += -DNO_DUMP_HARDWARE_INITIALISATION -DUSE_FONT_6X8',
+#     'DEFINES += -DSAVE_ON_FLASH_SAVE -DSAVE_ON_FLASH_ERRORMSG -DSAVE_ON_FLASH_RANDOM -DSAVE_ON_FLASH_WAVEFORM -DSAVE_ON_FLASH_MATH -DSAVE_ON_FLASH_SWSERIAL -DSAVE_ON_FLASH_FFT -DSAVE_ON_FLASH_DUMP',
+#     'DEFINES+=-DDUMP_IGNORE_VARIABLES=\'"g\\0"\'',
+     'DEFINES += -DFDS_VIRTUAL_PAGES=10', #should match fstorage_pages below
+     'DEFINES += -DBANGLEJS',
      'NRF_SDK15=1'
-     'INCLUDE += -I$(ROOT)/libs/misc',
-     'WRAPPERSOURCES += libs/misc/jswrap_stepcount.c',
-     'SOURCES += libs/misc/stepcount.c'
    ]
  }
 };
 
-save_code_pages = 96; #96;
-fstorage_pages = 2; # typically 2, 10 reduces risk of brick on first flash from stock FW
+save_code_pages = 20; #96;
+fstorage_pages = 10; # typically 2, 10 reduces risk of brick on first flash from stock FW
 chip = {
   'part' : "NRF52840",
   'family' : "NRF52",
@@ -71,28 +68,37 @@ chip = {
   'address' : ((0xf8 - fstorage_pages - save_code_pages) * 4096), # Bootloader at 0xF8000
   'page_size' : 4096,
   'pages' : save_code_pages,
-  'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages + save_code_pages)*4) # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 0x100-0xe0=0x20, FS 2, code 96. Each page is 4 kb.
-#  'address' : 0x60000000, # put this in external spiflash (see below) 
-#  'pages' : 2048 # Entire 8MB of external flash
-   },
+  'flash_available' : 1024 - ((0x26 + (0x100-0xf8) + fstorage_pages + save_code_pages)*4), # Softdevice uses 38 pages of flash (0x26000/0x100), bootloader 0x100-0xe0=0x20, FS 2, code 96. Each page is 4 kb.
+ # 'address2' : 0x60000000, # put this in external spiflash (see below)
+ # 'pages2' : 2048, # Entire 8MB of external flash
+  },
 };
 
 devices = {
-  'BTN1' : { 'pin' : 'D46', 'pinstate' : 'IN_PULLDOWN' },
-  'BTN2' : { 'pin' : 'D45', 'pinstate' : 'IN_PULLDOWN' },
+  'BTN1' : { 'pin' : 'D44', 'pinstate' : 'IN_PULLDOWN' },
 
   'SPIFLASH' : {
-            'pin_cs' : 'D20',
-            'pin_sck' : 'D25',
-            'pin_mosi' : 'D22',
-            'pin_miso' : 'D23',
-            'pin_wp' : 'D21',
+            'pin_cs' : 'D17',
+            'pin_sck' : 'D19',
+            'pin_mosi' : 'D20',
+            'pin_miso' : 'D21',
+            'pin_wp' : 'D22',
 #            'pin_hold' : 'D23',
-            'pin_rst' : 'D24', # no reset but this is HOLD pin, we want it set to 1 like RST
+            'pin_rst' : 'D23', # no reset but this is HOLD pin, we want it set to 1 like RST
             'size' : 8192*1024, # 4MB
             'memmap_base' : 0x60000000,
-          }
+          },
 
+           'LCD' : {
+            'width' : 240, 'height' : 240, 'bpp' : 16, 
+            'controller' : 'gc9a01a',
+            'pin_dc' : 'D7',
+            'pin_cs' : 'D8',
+            'pin_rst' : 'D38',
+            'pin_sck' : 'D14',
+            'pin_mosi' : 'D15',
+            'bitrate' : 32000000
+          }
 
 };
 
@@ -148,8 +154,7 @@ def get_pins():
   pinutils.findpin(pins, "PD30", True)["functions"]["ADC1_IN6"]=0;
   pinutils.findpin(pins, "PD31", True)["functions"]["ADC1_IN7"]=0;
    # Make buttons and LEDs negated
-  pinutils.findpin(pins, "PD45", True)["functions"]["NEGATED"]=0;
-  pinutils.findpin(pins, "PD46", True)["functions"]["NEGATED"]=0;
+  pinutils.findpin(pins, "PD44", True)["functions"]["NEGATED"]=0;
   # everything is non-5v tolerant
   for pin in pins:
     pin["functions"]["3.3"]=0;

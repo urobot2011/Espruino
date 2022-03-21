@@ -23,6 +23,8 @@
 #define LCD_DATA_HEIGHT 120 // pixel doubled
 #define LCD_STORE_MODIFIED
 #define LCD_BL_ON 1
+#define LCD_START_X 12
+#define LCD_START_Y 24
 #endif
 #ifdef LCD_CONTROLLER_ST7735 // F5
 #define LCD
@@ -34,7 +36,7 @@
 #ifdef LCD_CONTROLLER_ST7789_8BIT // Bangle.js
 #define LCD
 #define LCD_DATA_WIDTH 120 // pixel doubled
-#define LCD_DATA_HEIGHT 120 // pixel doubled
+#define LCD_DATA_HEIGHT 140 // pixel doubled
 //#define LCD_STORE_MODIFIED // removed just to try and scrape a few extra bytes!
 #define I2C_SDA 15
 #define I2C_SCL 14

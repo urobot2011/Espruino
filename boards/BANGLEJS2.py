@@ -34,8 +34,8 @@ info = {
      'TERMINAL',
      'GRAPHICS',
      'CRYPTO','SHA256','SHA512',
-     'LCD_MEMLCD',
-     'TENSORFLOW'  
+     'LCD_MEMLCD'
+#     'TENSORFLOW'  
    ],
    'makefile' : [
      'DEFINES += -DESPR_HWVERSION=2 -DBANGLEJS -DBANGLEJS_Q3',

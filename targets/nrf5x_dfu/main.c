@@ -68,24 +68,28 @@ static bool dfuIsConnected = false;
 static bool dfuIsColdBoot = false;
 
 void app_error_fault_handler(uint32_t id, uint32_t pc, uint32_t info) {
+    lcd_println("NRF ERROR 0");
 /*  NRF_LOG_ERROR("received a fault! id: 0x%08x, pc: 0x&08x\r\n", id, pc);
   NVIC_SystemReset();*/
 }
 
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name) {
+  lcd_println("NRF ERROR 1");
   /*(void)error_code;
   NRF_LOG_ERROR("received an error: 0x%08x at %s:%d!\r\n", error_code, p_file_name?p_file_name:"?", line_num);
   NVIC_SystemReset();*/
 }
 
 void app_error_handler_bare(uint32_t error_code) {
+ lcd_println("NRF ERROR 2");
 /*  (void)error_code;
   NRF_LOG_ERROR("received an error: 0x%08x!\r\n", error_code);
   NVIC_SystemReset();*/
 }
 
 void ble_app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t * p_file_name) {
-  /*lcd_println("NRF ERROR");
+  lcd_println("NRF ERROR 3");
+/*
   nrf_delay_ms(10000);
   NVIC_SystemReset();*/
 }
@@ -93,7 +97,7 @@ void ble_app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t
 void turn_off() {
   lcd_kill();
 #ifdef SPIFLASH_SLEEP_CMD  
-  flashPowerDown();  // Put the SPI Flash into deep power-down
+  //flashPowerDown();  // Put the SPI Flash into deep power-down
 #endif  
 #ifdef VIBRATE_PIN
   jshPinOutput(VIBRATE_PIN,1); // vibrate on
@@ -196,8 +200,8 @@ bool dfu_enter_check(void) {
         dfu_start = false;
 #if defined(BUTTONPRESS_TO_REBOOT_BOOTLOADER) && defined(BTN2_PININDEX)
         if (jshPinGetValue(BTN2_PININDEX)) {
-          turn_off();
-          //NVIC_SystemReset(); // just in case!
+          //turn_off();
+          NVIC_SystemReset(); // just in case!
         }
 #endif
       } else {
@@ -219,7 +223,7 @@ bool dfu_enter_check(void) {
       // but if we go straight through to run code then if the code fails to boot
       // we'll restart.
       NRF_WDT->CONFIG = (WDT_CONFIG_HALT_Pause << WDT_CONFIG_HALT_Pos) | ( WDT_CONFIG_SLEEP_Run << WDT_CONFIG_SLEEP_Pos);
-      NRF_WDT->CRV = (int)(5*32768); // 5 seconds
+      NRF_WDT->CRV = (int)(30*32768); // 5 seconds
       NRF_WDT->RREN |= WDT_RREN_RR0_Msk;  // Enable reload register 0
       NRF_WDT->TASKS_START = 1;
       NRF_WDT->RR[0] = 0x6E524635; // Kick...
@@ -282,8 +286,9 @@ void dfu_evt_init() {
 #endif
       NULL);
 #endif
+// lcd_println(err_code?"TIMER ERROR":"TIMER SUCCESS");
 #ifdef BUTTONPRESS_TO_REBOOT_BOOTLOADER
-  lcd_println("BTN1 = REBOOT");
+//  lcd_println("BTN1 = REBOOT");
 #endif
 }
 
@@ -321,6 +326,7 @@ static void dfu_observer(nrf_dfu_evt_type_t evt_type)
     {
         case NRF_DFU_EVT_DFU_INITIALIZED:
           dfu_evt_init();
+          lcd_println("DFU INIT");
           break;
         case NRF_DFU_EVT_DFU_FAILED:
         case NRF_DFU_EVT_DFU_ABORTED:
@@ -379,7 +385,7 @@ int main(void)
         nrf_delay_ms(1000);
       }
       if (!get_btn1_state() && (r&0xF)==0) { // Don't turn off after a SW reset, to avoid user input needed during reflashing
-        turn_off();
+        //turn_off();
       } else {
 #ifdef DICKENS
         // DICKENS: Enter bootloader only if BTN2 held as well
@@ -432,16 +438,19 @@ int main(void)
     // Boot the main application.
     nrf_bootloader_app_start(MAIN_APPLICATION_START_ADDR);
 #else
+    lcd_println("INIT BOOT LOADER");
     ret_val = nrf_bootloader_init(dfu_observer);
     APP_ERROR_CHECK(ret_val);
     // Either there was no DFU functionality enabled in this project or the DFU module detected
     // no ongoing DFU operation and found a valid main application.
     // Boot the main application.
+    lcd_println("BOOT APP START");
     nrf_bootloader_app_start();
 #endif
 
 
     // Should never be reached.
+    lcd_println("MAIN END ERROR 3");
     NRF_LOG_INFO("After main\r\n");
 }
 
