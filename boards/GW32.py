@@ -43,15 +43,15 @@ info = {
      'DEFINES += -DNO_DUMP_HARDWARE_INITIALISATION -DUSE_FONT_6X8',
 #     'DEFINES += -DSAVE_ON_FLASH_SAVE -DSAVE_ON_FLASH_ERRORMSG -DSAVE_ON_FLASH_RANDOM -DSAVE_ON_FLASH_WAVEFORM -DSAVE_ON_FLASH_MATH -DSAVE_ON_FLASH_SWSERIAL -DSAVE_ON_FLASH_FFT -DSAVE_ON_FLASH_DUMP',
 #     'DEFINES+=-DDUMP_IGNORE_VARIABLES=\'"g\\0"\'',
-     'DEFINES += -DFDS_VIRTUAL_PAGES=10', #should match fstorage_pages below
+     'DEFINES += -DFDS_VIRTUAL_PAGES=2', #should match fstorage_pages below
      'DEFINES += -DBANGLEJS',
      'NRF_SDK15=1'
    ]
  }
 };
 
-save_code_pages = 20; #96;
-fstorage_pages = 10; # typically 2, 10 reduces risk of brick on first flash from stock FW
+save_code_pages = 96; #96;
+fstorage_pages = 2; # typically 2, 10 reduces risk of brick on first flash from stock FW
 chip = {
   'part' : "NRF52840",
   'family' : "NRF52",
