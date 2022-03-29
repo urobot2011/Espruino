@@ -45,7 +45,10 @@ info = {
 #     'DEFINES+=-DDUMP_IGNORE_VARIABLES=\'"g\\0"\'',
      'DEFINES += -DFDS_VIRTUAL_PAGES=2', #should match fstorage_pages below
      'DEFINES += -DBANGLEJS',
-     'NRF_SDK15=1'
+     'NRF_SDK15=1',
+     'INCLUDE += -I$(ROOT)/libs/misc',
+     'WRAPPERSOURCES += libs/misc/jswrap_stepcount.c',
+     'SOURCES += libs/misc/stepcount.c'
    ]
  }
 };
